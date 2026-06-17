@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .models import AnalyzedChunk, BookMetadata, BookResult, ChunkLabel
+from .settings import get_api_key as _cfg_api_key, get_base_url as _cfg_base_url, get_model as _cfg_model, get_system_prompt as _cfg_prompt
 
 # ---------------------------------------------------------------------------
 # Models
@@ -279,25 +280,33 @@ def _generate_template(
 # ---------------------------------------------------------------------------
 
 _BLOG_PROMPT = """\
-Bạn là một blogger sách chuyên nghiệp tại Việt Nam. Viết bài review SEO cho cuốn sách sau.
+Bạn là blogger sách chuyên nghiệp tại Việt Nam, chuyên viết bài review giúp độc giả ra quyết định mua sách.
 
 Thông tin sách:
 - Tên: {title}
 - Tác giả: {author}
 
-Các đoạn hay nhất từ sách (chọn lọc để dùng trong bài):
+Các đoạn hay nhất từ sách:
 {chunks_text}
 
-Yêu cầu bài viết:
-1. Độ dài: 1500-2000 từ
-2. Cấu trúc: H1 tiêu đề → H2 "Tại sao nên đọc" → H2 "X bài học hay nhất" (H3 mỗi bài) → H2 "Câu trích dẫn hay" → H2 "Ai nên đọc" → H2 "Kết luận + CTA mua sách"
-3. SEO: Đặt keyword "{title}" tự nhiên trong bài (5-8 lần)
-4. Giọng văn: Thân thiện, dễ đọc, cuốn hút
-5. Format: Markdown thuần túy
-6. CTA cuối bài: Nếu có affiliate_link="{affiliate_link}" thì chèn link mua sách vào CTA
-7. KHÔNG sao chép nguyên xi từ sách — VIẾT LẠI bằng lời của bạn
+YÊU CẦU BÀI VIẾT — dựa trên nghiên cứu về bài blog convert cao:
 
-Trả về MARKDOWN bài viết hoàn chỉnh (không kèm chú thích gì thêm).
+1. CẤU TRÚC (theo mô hình Khẳng định → Bằng chứng → Ví dụ → Bài học):
+   - H1: tiêu đề gây tò mò, chứa keyword, ≤12 từ
+   - Mở bài: 1 câu hỏi tu từ + 1 khẳng định táo bạo (KHÔNG bắt đầu bằng "Cuốn sách này...")
+   - H2 "Vì sao [title] khác biệt?" — dùng số liệu/nghiên cứu từ sách
+   - H2 "X bài học cốt lõi" — mỗi H3 theo cấu trúc: Tiêu đề → Giải thích → Ví dụ thực tế → Quote ngắn từ sách
+   - H2 "Ai nên đọc [title]?" — cụ thể (đừng nói "ai cũng nên đọc")
+   - H2 "Kết luận" + CTA mua sách
+2. ĐỘ DÀI: 1500-2000 từ
+3. GIỌNG VĂN: thân mật + thực hành (76% câu chủ động, dùng "bạn/tôi")
+4. SEO: keyword "{title}" xuất hiện tự nhiên 5-8 lần; đặt keyword ngay đầu bài
+5. THUẬT NGỮ: Giữ nguyên thuật ngữ chuyên ngành từ sách, KHÔNG diễn giải lại
+6. FORMAT: Markdown thuần túy
+7. CTA: nếu affiliate_link="{affiliate_link}" khác rỗng, chèn link mua sách vào cuối
+8. KHÔNG copy nguyên xi — diễn giải lại bằng lời của bạn
+
+Trả về MARKDOWN hoàn chỉnh (không thêm chú thích).
 """
 
 
@@ -333,10 +342,31 @@ def _generate_with_ai(
         affiliate_link=affiliate_link or "",
     )
 
+    _blog_system = _cfg_prompt("blog") or (
+        "Bạn là blogger và nhà văn chuyên viết bài review sách SEO cho độc giả Việt Nam, "
+        "phong cách Spiderum/Ybox — thân mật, có chiều sâu, thực tế.\n\n"
+        "NGUYÊN TẮC VIẾT:\n"
+        "1. Mỗi đoạn văn HOÀN CHỈNH: câu chủ đề + triển khai + kết — không câu đứt giữa chừng\n"
+        "2. Lập luận: Khẳng định → Bằng chứng → Ví dụ → Bài học áp dụng\n"
+        "3. Dùng 'bạn' xuyên suốt — kết nối với người đọc\n"
+        "4. Câu văn chủ động là chính, tránh bị động thụ động\n"
+        "5. KHÔNG bắt đầu bằng 'Cuốn sách này...' — giết curiosity ngay từ đầu\n"
+        "6. Mỗi heading phải gợi tò mò, không chỉ mô tả thuần túy\n"
+        "7. Trả về Markdown hoàn chỉnh, không thêm ghi chú hay giải thích ngoài bài viết"
+    )
+
+    # Auto-load từ settings nếu caller không truyền
+    api_key = api_key or _cfg_api_key()
+    base_url = base_url or _cfg_base_url()
+    model = model or _cfg_model()
+
     headers = {"Authorization": f"Bearer {api_key}"}
     payload = {
         "model": model,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [
+            {"role": "system", "content": _blog_system},
+            {"role": "user", "content": prompt},
+        ],
         "temperature": 0.7,
         "max_tokens": 3000,
     }

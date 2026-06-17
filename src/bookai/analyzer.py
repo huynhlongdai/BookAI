@@ -7,9 +7,17 @@ import os
 import time
 
 from .models import AnalyzedChunk, Chunk, ChunkLabel
+from .settings import get_api_key as _settings_api_key, get_base_url as _settings_base_url, get_model as _settings_model, get_system_prompt
 
-ANALYSIS_PROMPT = """Bạn là một chuyên gia phân tích nội dung sách cho affiliate marketing.
+ANALYSIS_PROMPT = """Bạn là chuyên gia phân tích nội dung sách cho affiliate marketing Việt Nam.
 Nhiệm vụ: phân tích đoạn text sau và đánh giá tiềm năng viral trên TikTok/mạng xã hội.
+
+NGUYÊN TẮC PHÂN TÍCH:
+- Giữ nguyên thuật ngữ chuyên ngành, KHÔNG dịch lại hay giải thích lại
+- Nhận diện câu hỏi tu từ (câu hỏi không cần trả lời) — rất mạnh cho TikTok hook
+- Nhận diện số liệu/nghiên cứu/thống kê — tăng độ tin cậy
+- Nhận diện cấu trúc lập luận: Khẳng định → Bằng chứng → Ví dụ (pattern mạnh nhất)
+- Câu ngắn ≤12 từ = dễ dùng cho TikTok; câu dài >25 từ = cần rút gọn khi tạo content
 
 Đoạn text:
 ---
@@ -18,18 +26,22 @@ Nhiệm vụ: phân tích đoạn text sau và đánh giá tiềm năng viral tr
 
 Trả về JSON với format:
 {{
-  "labels": ["quote"|"summary"|"story"|"example"|"insight"|"hook"|"tip"|"controversial"],
+  "labels": ["quote"|"summary"|"story"|"example"|"insight"|"hook"|"tip"|"controversial"|"research"|"rhetorical_question"],
   "viral_score": <0.0-10.0>,
-  "summary": "<tóm tắt ngắn 1-2 câu>",
-  "reason": "<lý do chấm điểm viral>"
+  "summary": "<tóm tắt ngắn 1-2 câu, giữ nguyên thuật ngữ>",
+  "reason": "<lý do chấm điểm viral>",
+  "best_hook_sentence": "<1 câu hay nhất để làm hook TikTok, ≤15 từ>",
+  "content_structure": "claim_evidence_example"|"listicle"|"story"|"qa"|"other"
 }}
 
-Tiêu chí chấm viral_score:
-- Curiosity (gây tò mò): +2 điểm
-- Emotion (gây cảm xúc mạnh): +2 điểm
-- Actionable (áp dụng được ngay): +2 điểm
-- Controversy (gây tranh luận): +2 điểm
-- Relatability (ai cũng thấy liên quan): +2 điểm
+Tiêu chí chấm viral_score (0-10):
+- Curiosity / câu hỏi tu từ (gây tò mò, curiosity gap): +2 điểm
+- Emotion (gây cảm xúc mạnh — sợ, ngạc nhiên, đồng cảm): +2 điểm
+- Actionable (áp dụng được ngay — có bước cụ thể): +2 điểm
+- Controversy (đi ngược lẽ thường, gây tranh luận): +2 điểm
+- Relatability (ai cũng từng gặp tình huống này): +2 điểm
+
+Bonus: +0.5 nếu có số liệu cụ thể; +0.5 nếu câu đầu ≤12 từ (TikTok-ready)
 
 Chỉ trả về JSON, không giải thích thêm."""
 
@@ -37,7 +49,7 @@ Chỉ trả về JSON, không giải thích thêm."""
 def analyze_chunks(
     chunks: list[Chunk],
     api_key: str | None = None,
-    model: str = "gpt-4o-mini",
+    model: str | None = None,
     provider: str = "openai",
     base_url: str | None = None,
 ) -> list[AnalyzedChunk]:
@@ -45,14 +57,18 @@ def analyze_chunks(
 
     Args:
         chunks: List of text chunks to analyze.
-        api_key: API key for LLM provider. Falls back to env vars.
-        model: Model name to use.
+        api_key: API key for LLM provider. Falls back to settings/env.
+        model: Model name. Falls back to settings config.
         provider: LLM provider ("openai", "anthropic", "custom", or "mock").
-        base_url: Custom API base URL (for OpenAI-compatible endpoints).
+        base_url: Custom API base URL. Falls back to settings config.
 
     Returns:
         List of AnalyzedChunk with labels and scores.
     """
+    # Auto-load từ settings nếu không truyền vào
+    model = model or _settings_model()
+    base_url = base_url or _settings_base_url()
+
     if provider == "mock":
         return [_mock_analyze(chunk) for chunk in chunks]
 
@@ -217,12 +233,21 @@ def _call_openai(
     if not url.endswith("/chat/completions"):
         url = url.rstrip("/") + "/chat/completions"
 
+    system_msg = get_system_prompt("analyzer") or (
+        "Bạn là chuyên gia phân tích nội dung sách và AI content strategist "
+        "với chuyên môn về viral marketing cho thị trường Việt Nam. "
+        "Luôn trả về JSON hợp lệ, không thêm giải thích ngoài JSON."
+    )
+
     response = httpx.post(
         url,
         headers={"Authorization": f"Bearer {api_key}"},
         json={
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": prompt},
+            ],
             "temperature": 0.3,
             "max_tokens": 2000,
             "stream": False,
@@ -270,6 +295,11 @@ def _call_anthropic(prompt: str, api_key: str, model: str) -> str:
         json={
             "model": model,
             "max_tokens": 1000,
+            "system": (
+                "Bạn là chuyên gia phân tích nội dung sách và AI content strategist "
+                "với chuyên môn về viral marketing cho thị trường Việt Nam. "
+                "Luôn trả về JSON hợp lệ, không thêm giải thích ngoài JSON."
+            ),
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
         },
@@ -359,9 +389,9 @@ def _mock_analyze(chunk: Chunk) -> AnalyzedChunk:
 
 
 def _get_api_key(provider: str) -> str | None:
-    """Get API key from environment."""
+    """Get API key — ưu tiên settings.json, fallback env."""
     if provider in ("openai", "custom"):
-        return os.environ.get("OPENAI_API_KEY") or os.environ.get("API_KEY")
+        return _settings_api_key() or os.environ.get("OPENAI_API_KEY") or os.environ.get("API_KEY")
     elif provider == "anthropic":
         return os.environ.get("ANTHROPIC_API_KEY")
     return None

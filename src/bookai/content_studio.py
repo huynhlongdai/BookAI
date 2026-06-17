@@ -9,6 +9,7 @@ from enum import Enum
 from pathlib import Path
 
 from .models import AnalyzedChunk, BookMetadata, ChunkLabel
+from .settings import get_api_key as _cfg_api_key, get_base_url as _cfg_base_url, get_model as _cfg_model, get_system_prompt as _cfg_prompt
 
 
 class ContentType(str, Enum):
@@ -710,50 +711,51 @@ def _find_related_chunks(
 # AI Rewrite — Use LLM to produce polished radio scripts
 # ---------------------------------------------------------------------------
 
-_RADIO_REWRITE_PROMPT = """Bạn là scriptwriter viết kịch bản radio sách dài cho TikTok/YouTube.
-Phong cách: @sachhayexpress — giọng kể chuyện trầm, sâu lắng, triết lý.
+_RADIO_REWRITE_PROMPT = """Bạn là scriptwriter viết kịch bản radio sách cho TikTok/YouTube.
+Phong cách: @sachhayexpress — giọng kể chuyện trầm, thân mật, thực hành.
 
 Từ đoạn trích sách dưới đây, hãy VIẾT LẠI thành kịch bản radio hoàn chỉnh {duration_target}.
-KHÔNG chỉ copy nguyên văn — hãy diễn giải, mở rộng, thêm ví dụ,
-kể chuyện để người nghe dễ hiểu.
+KHÔNG copy nguyên văn — diễn giải, mở rộng, thêm ví dụ, kể chuyện.
 
 THÔNG TIN:
 - Tên sách: {book_title}
 - Tác giả: {author}
-- Đoạn trích gốc (dùng làm nguồn ý tưởng, KHÔNG copy nguyên):
+- Đoạn trích gốc (nguồn ý tưởng, KHÔNG copy nguyên):
 ---
 {chunk_text}
 ---
 
-CẤU TRÚC KỊCH BẢN:
-1. HOOK (2-3 câu mở đầu cực gây tò mò, tạo curiosity gap, khiến người ta PHẢI nghe tiếp)
-2. BODY (nội dung chính - PHẢI DÀI {word_target} từ):
-   - Giải thích ý tưởng từ sách bằng ngôn ngữ đời thường
+CẤU TRÚC KỊCH BẢN — theo mô hình đã kiểm chứng:
+1. HOOK (1-2 câu, ≤12 từ/câu, BẮT ĐẦU BẰNG CÂU HỎI TU TỪ hoặc khẳng định táo bạo):
+   - Mẫu tốt: "Bạn có biết vì sao 90% nhân viên bán hàng thất bại?"
+   - Mẫu tốt: "Có một sự thật mà không ai dạy bạn về bán hàng."
+   - Tránh: bắt đầu bằng tên sách, bắt đầu bằng "Hôm nay chúng ta..."
+2. BODY (nội dung chính — {word_target} từ trở lên):
+   - Dùng cấu trúc: Khẳng định → Bằng chứng/Nghiên cứu → Ví dụ cụ thể → Bài học
+   - Giữ nguyên thuật ngữ chuyên ngành từ sách (ví dụ: SPIN, nhu cầu tiềm ẩn, lợi ích)
+   - Câu chuyển đoạn tự nhiên: "Nhưng đây mới là điều quan trọng...", "Bạn biết không...",
+     "Hãy tưởng tượng thế này...", "Trong thực tế, tôi đã thấy..."
+   - Xen kẽ câu ngắn (≤12 từ) và câu dài — tạo nhịp điệu khi đọc
    - Thêm ví dụ thực tế, tình huống quen thuộc để minh họa
-   - Kể câu chuyện ngắn nếu phù hợp
-   - Phân tích sâu hơn, liên hệ với cuộc sống người nghe
-   - Có thể chia thành 3-5 điểm chính nếu nội dung dạng listicle
-3. CTA (2-3 câu kêu gọi tự nhiên: mua sách để đọc đầy đủ hơn)
+3. CTA (2-3 câu tự nhiên — mời đọc sách, không áp lực):
 
-FORMAT trả về JSON:
+FORMAT JSON:
 {{
-  "hook": "nội dung hook 2-3 câu",
-  "body": "nội dung body DÀI {word_target} từ trở lên",
-  "cta": "nội dung CTA 2-3 câu",
-  "title": "tiêu đề ngắn cho video"
+  "hook": "hook 1-2 câu, bắt đầu bằng câu hỏi hoặc khẳng định táo bạo",
+  "body": "body DÀI {word_target} từ trở lên",
+  "cta": "CTA 2-3 câu nhẹ nhàng",
+  "title": "tiêu đề ≤8 từ, gây tò mò"
 }}
 
 QUAN TRỌNG:
-- Body phải DÀI ÍT NHẤT {word_target} từ — đây là video {duration_target}, không phải clip 30 giây
-- Giọng văn tự nhiên, conversational, như đang KỂ CHUYỆN cho bạn bè nghe
-- Dùng "bạn" để nói chuyện trực tiếp
-- Diễn giải bằng ngôn ngữ đơn giản, ai cũng hiểu được
-- Thêm câu chuyển đoạn: "Và đây là điều thú vị...",
-  "Bạn biết không...", "Hãy tưởng tượng thế này..."
-- KHÔNG dùng emoji, KHÔNG dùng tiếng Anh, KHÔNG dùng markdown formatting
-- Chỉ trả về JSON, không giải thích thêm."""
+- Hook PHẢI là câu hỏi tu từ hoặc khẳng định gây sốc — đây là yếu tố quyết định watch-time
+- Body ≥{word_target} từ — video {duration_target}, không phải clip ngắn
+- Giọng "bạn/tôi" — thân mật như nói chuyện với bạn bè
+- Giữ thuật ngữ chuyên ngành, không dịch lại hay paraphrase
+- KHÔNG emoji, KHÔNG tiếng Anh, KHÔNG markdown
+- Chỉ trả về JSON"""
 
-_CAPTION_REWRITE_PROMPT = """Viết caption TikTok hấp dẫn cho đoạn sách sau.
+_CAPTION_REWRITE_PROMPT = """Viết caption TikTok tối ưu cho đoạn sách sau.
 
 Tên sách: {book_title}
 Tác giả: {author}
@@ -762,17 +764,73 @@ Nội dung đoạn:
 {chunk_text}
 ---
 
-YÊU CẦU:
-- Caption ngắn gọn 2-4 câu, gây tò mò
-- Kết bằng CTA nhẹ (hỏi ý kiến hoặc mời mua sách)
-- Không emoji, không tiếng Anh
-- Tối ưu SEO TikTok (keyword ở đầu caption)
+YÊU CẦU — dựa theo nghiên cứu về caption viral:
+- Câu đầu tiên (line 1): PHẢI là câu hỏi tu từ hoặc khẳng định táo bạo, ≤12 từ
+  Mẫu: "Bạn có biết vì sao hầu hết người bán hàng thất bại?"
+  Mẫu: "Có 1 sai lầm mà 95% nhân viên bán hàng đang mắc phải."
+- Câu 2-3: mở rộng curiosity, dùng cấu trúc "Thay vì X, hãy Y" hoặc "Sự thật là..."
+- Câu cuối: CTA nhẹ — hỏi ý kiến hoặc "@mention ai cần đọc điều này"
+- Giữ nguyên thuật ngữ chuyên ngành (SPIN, nhu cầu tiềm ẩn...) nếu có
+- Tối ưu SEO: đặt keyword chính ngay đầu câu đầu tiên
+- KHÔNG emoji trong caption chính, KHÔNG tiếng Anh
 
 Trả về JSON:
 {{
-  "caption": "nội dung caption",
-  "hook_keyword": "keyword chính cho SEO"
+  "caption": "caption đầy đủ (3-5 câu, xuống dòng giữa các câu)",
+  "hook_keyword": "keyword chính cho TikTok SEO (1-3 từ)",
+  "hook_type": "rhetorical_question hoặc bold_claim hoặc statistic hoặc story_open"
 }}"""
+
+# ---------------------------------------------------------------------------
+# Persona system prompts — injected as "system" role for each content type
+# ---------------------------------------------------------------------------
+
+# Persona prompts — loaded from settings (có thể tuỳ chỉnh qua CLI)
+# Fallback hardcoded nếu settings chưa có
+
+_SYSTEM_PERSONA_RADIO = None       # lazy-loaded
+_SYSTEM_PERSONA_CAPTION = None     # lazy-loaded
+_SYSTEM_PERSONA_BLOG = None        # lazy-loaded
+_SYSTEM_PERSONA_ANALYSIS = None    # lazy-loaded
+
+_RADIO_DEFAULT = (
+    "Bạn là nhà văn và content creator chuyên nghiệp 10 năm viết kịch bản sách nói, "
+    "podcast và TikTok viral tại Việt Nam.\n\n"
+    "NGUYÊN TẮC VIẾT:\n"
+    "1. Mỗi câu đều HOÀN CHỈNH, rõ nghĩa khi đọc riêng lẻ\n"
+    "2. Viết như đang NÓI CHUYỆN với bạn bè thông minh\n"
+    "3. Câu ngắn (8-15 từ) xen câu dài (20-30 từ) tạo nhịp điệu\n"
+    "4. Hook BẮT BUỘC là câu hỏi tu từ\n"
+    "5. Body: Khẳng định → Bằng chứng → Ví dụ → Bài học\n"
+    "6. KHÔNG lặp lại hook ở body"
+)
+_CAPTION_DEFAULT = (
+    "Bạn là copywriter chuyên viết caption TikTok viral tại Việt Nam.\n\n"
+    "NGUYÊN TẮC:\n"
+    "1. Câu đầu ≤12 từ, HOÀN CHỈNH về nghĩa\n"
+    "2. Mỗi câu ĐỌC HIỂU NGAY khi lướt\n"
+    "3. Tổng ≤5 câu\n"
+    "4. Kết bằng câu hỏi mở"
+)
+_BLOG_DEFAULT = (
+    "Bạn là blogger chuyên review sách theo phong cách Spiderum, Ybox.\n\n"
+    "NGUYÊN TẮC:\n"
+    "1. KHÔNG mở bài bằng 'Cuốn sách này...'\n"
+    "2. Lập luận: Khẳng định → Bằng chứng → Ví dụ → Bài học\n"
+    "3. Giọng thân mật: dùng 'bạn/tôi'"
+)
+_ANALYSIS_DEFAULT = (
+    "Bạn là chuyên gia phân tích nội dung và viral marketing Việt Nam. "
+    "Trả về JSON hợp lệ, không thêm giải thích ngoài JSON."
+)
+
+
+def _get_persona(key: str, default: str) -> str:
+    """Lấy persona từ settings, fallback về default."""
+    try:
+        return _cfg_prompt(key) or default
+    except Exception:
+        return default
 
 
 def _call_llm_for_rewrite(
@@ -781,29 +839,36 @@ def _call_llm_for_rewrite(
     model: str = "gpt-4o-mini",
     base_url: str | None = None,
     max_retries: int = 3,
+    system_prompt: str | None = None,
 ) -> str:
     """Call LLM for content rewriting (uses same infrastructure as analyzer)."""
     import time as _time
 
     import httpx
 
-    api_key = api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("key_api", "")
+    api_key = api_key or _cfg_api_key() or os.environ.get("OPENAI_API_KEY") or os.environ.get("key_api", "")
     if not api_key:
-        raise ValueError("No API key available for AI rewrite")
+        raise ValueError("No API key available for AI rewrite. Run: python -m bookai.settings set api.key sk-xxxx")
 
-    url = base_url or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    url = base_url or _cfg_base_url() or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
     if not url.endswith("/chat/completions"):
         url = url.rstrip("/") + "/chat/completions"
 
     last_error: Exception | None = None
     for attempt in range(max_retries):
         try:
+            # Build messages with optional system persona
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
             response = httpx.post(
                 url,
                 headers={"Authorization": f"Bearer {api_key}"},
                 json={
                     "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "messages": messages,
                     "temperature": 0.7,
                     "max_tokens": 4000,
                     "stream": False,
@@ -910,7 +975,8 @@ def ai_rewrite_radio_scripts(
 
         try:
             response_text = _call_llm_for_rewrite(
-                prompt, api_key=api_key, model=model, base_url=base_url
+                prompt, api_key=api_key, model=model, base_url=base_url,
+                system_prompt=_get_persona("radio", _RADIO_DEFAULT),
             )
             # Parse JSON response
             text = response_text.strip()
@@ -993,7 +1059,8 @@ def ai_rewrite_captions(
 
         try:
             response_text = _call_llm_for_rewrite(
-                prompt, api_key=api_key, model=model, base_url=base_url
+                prompt, api_key=api_key, model=model, base_url=base_url,
+                system_prompt=_get_persona("caption", _CAPTION_DEFAULT),
             )
             text = response_text.strip()
             if text.startswith("```"):
