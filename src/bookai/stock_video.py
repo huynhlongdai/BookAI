@@ -60,6 +60,7 @@ class StockVideoConfig:
     provider: str = "pexels"          # pexels, pixabay, coverr
     pexels_api_key: str = ""
     pixabay_api_key: str = ""
+    coverr_api_key: str = ""
     min_duration: int = 3             # minimum clip duration in seconds
     max_results_per_term: int = 5
     cache_dir: str = "resource/stock_cache"
@@ -232,6 +233,99 @@ def search_pixabay(
 
 
 # ---------------------------------------------------------------------------
+# Provider: Coverr  (coverr.co — free 4K video clips)
+# ---------------------------------------------------------------------------
+
+
+def search_coverr(
+    search_term: str,
+    video_aspect: str = "9:16",
+    config: StockVideoConfig | None = None,
+) -> list[MaterialInfo]:
+    """Search Coverr for free stock videos.
+
+    Coverr provides high-quality, free 4K video clips.
+    API docs: https://coverr.co/api (Bearer token auth).
+
+    The search endpoint returns hits with ``playback_id`` (Mux-hosted).
+    To get a direct CDN download URL, we fetch ``/videos/{id}`` for each
+    hit and read ``urls.mp4`` (1080p) or ``urls.mp4_preview`` (360p).
+    """
+    cfg = config or StockVideoConfig()
+    api_key = getattr(cfg, "coverr_api_key", "")
+    if not api_key:
+        return []
+
+    materials: list[MaterialInfo] = []
+    session = _get_session(cfg.proxy)
+
+    # Map aspect to Coverr's is_vertical filter
+    orientation_filter = ""
+    if video_aspect == "9:16":
+        orientation_filter = " AND is_vertical:true"
+    elif video_aspect == "16:9":
+        orientation_filter = " AND is_vertical:false"
+
+    try:
+        resp = session.get(
+            "https://api.coverr.co/videos",
+            params={
+                "query": search_term,
+                "page_size": cfg.max_results_per_term,
+            },
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=cfg.timeout,
+        )
+        if resp.status_code != 200:
+            return []
+
+        data = resp.json()
+        hits = data.get("hits", [])
+
+        for hit in hits:
+            vid_id = hit.get("id", "")
+            duration = float(hit.get("duration", 0))
+            if duration < cfg.min_duration:
+                continue
+
+            # Fetch detail to get direct CDN download URL
+            try:
+                detail_resp = session.get(
+                    f"https://api.coverr.co/videos/{vid_id}",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    timeout=cfg.timeout,
+                )
+                if detail_resp.status_code != 200:
+                    continue
+
+                detail = detail_resp.json()
+                urls = detail.get("urls", {})
+                # Prefer 1080p, fallback to preview (360p)
+                download_url = urls.get("mp4", urls.get("mp4_preview", ""))
+                if not download_url:
+                    continue
+
+                materials.append(MaterialInfo(
+                    provider="coverr",
+                    url=download_url,
+                    duration=duration,
+                    width=int(hit.get("max_width", 0)),
+                    height=int(hit.get("max_height", 0)),
+                    search_term=search_term,
+                ))
+
+                time.sleep(0.2)  # Be polite to their API
+
+            except Exception:
+                continue
+
+    except Exception:
+        pass
+
+    return materials
+
+
+# ---------------------------------------------------------------------------
 # Download
 # ---------------------------------------------------------------------------
 
@@ -339,6 +433,10 @@ def search_and_download(
 
         if cfg.provider == "pixabay" or cfg.pixabay_api_key:
             results = search_pixabay(term, video_aspect, cfg)
+            all_materials.extend(results)
+
+        if cfg.provider == "coverr" or cfg.coverr_api_key:
+            results = search_coverr(term, video_aspect, cfg)
             all_materials.extend(results)
 
         # Rate limit between API calls

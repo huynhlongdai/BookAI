@@ -61,10 +61,11 @@ from bookai.stock_video import (
 class PipelineConfig:
     """Full pipeline configuration."""
 
-    # Material source: "pexels", "pixabay", "local", "ai"
+    # Material source: "pexels", "pixabay", "coverr", "local", "ai"
     material_source: str = "pexels"
     pexels_api_key: str = ""
     pixabay_api_key: str = ""
+    coverr_api_key: str = ""
     local_material_dir: str = ""  # Folder with user images/videos
 
     # Video settings
@@ -251,6 +252,7 @@ def collect_stock_materials(
         provider=config.material_source,
         pexels_api_key=config.pexels_api_key,
         pixabay_api_key=config.pixabay_api_key,
+        coverr_api_key=config.coverr_api_key,
         min_duration=config.max_clip_duration,
         max_results_per_term=3,
         cache_dir=os.path.join(output_dir, "stock_cache"),
@@ -694,7 +696,7 @@ def create_book_video(
             material_paths = [p for p in local_materials if os.path.exists(p)]
         elif config.material_source == "local" and config.local_material_dir:
             material_paths = collect_local_materials(config.local_material_dir, config)
-        elif config.material_source in ("pexels", "pixabay"):
+        elif config.material_source in ("pexels", "pixabay", "coverr"):
             # Generate search terms
             terms = search_terms or config.search_terms
             if not terms:

@@ -886,23 +886,25 @@ with tab_video:
 
     material_source = st.radio(
         "Nguồn material",
-        ["pexels", "pixabay", "local", "ai"],
+        ["pexels", "pixabay", "coverr", "local", "ai"],
         format_func=lambda x: {
-            "pexels": "🌐 Pexels — Tự tìm & tải stock video phù hợp (miễn phí)",
-            "pixabay": "🌐 Pixabay — Tự tìm & tải stock video phù hợp (miễn phí)",
-            "local": "📂 Thư mục local — Dùng ảnh/video của bạn",
-            "ai": "🎨 AI Background — Nền màu gradient (không cần material)",
+            "pexels": "🌐 Pexels — Stock video HD miễn phí",
+            "pixabay": "🌐 Pixabay — Stock video HD miễn phí",
+            "coverr": "🎬 Coverr — Stock video 4K miễn phí",
+            "local": "📂 Thư mục local — Ảnh/video của bạn",
+            "ai": "🎨 AI Background — Nền màu gradient",
         }.get(x, x),
         horizontal=True,
     )
 
     pexels_key = ""
     pixabay_key = ""
+    coverr_key = ""
     stock_search_terms = ""
     local_mat_dir = ""
     uploaded_files = []
 
-    if material_source in ("pexels", "pixabay"):
+    if material_source in ("pexels", "pixabay", "coverr"):
         mat_col1, mat_col2 = st.columns(2)
         with mat_col1:
             if material_source == "pexels":
@@ -912,12 +914,19 @@ with tab_video:
                     value=os.environ.get("PEXELS_API_KEY", ""),
                     help="Đăng ký miễn phí tại pexels.com/api",
                 )
-            else:
+            elif material_source == "pixabay":
                 pixabay_key = st.text_input(
                     "🔑 Pixabay API Key",
                     type="password",
                     value=os.environ.get("PIXABAY_API_KEY", ""),
                     help="Đăng ký miễn phí tại pixabay.com/api/docs",
+                )
+            else:
+                coverr_key = st.text_input(
+                    "🔑 Coverr API Key",
+                    type="password",
+                    value=os.environ.get("COVERR_API_KEY", ""),
+                    help="Đăng ký miễn phí tại coverr.co",
                 )
         with mat_col2:
             stock_search_terms = st.text_input(
@@ -1028,6 +1037,7 @@ with tab_video:
                 material_source=material_source,
                 pexels_api_key=pexels_key,
                 pixabay_api_key=pixabay_key,
+                coverr_api_key=coverr_key,
                 local_material_dir=local_mat_dir,
                 aspect=video_aspect,
                 max_clip_duration=max_clip_dur,
