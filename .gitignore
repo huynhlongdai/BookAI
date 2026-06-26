@@ -6,3 +6,13 @@ dist/
 output.md
 results.json
 *.epub
+
+# API keys — never commit
+config.toml
+.env
+
+# Output files
+output/
+*.mp4
+*.mp3
+*.wav

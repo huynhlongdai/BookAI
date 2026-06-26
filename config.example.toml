@@ -17,6 +17,7 @@ redis_port = 6379
 [llm]
 provider = "openai"  # openai, anthropic, gemini, deepseek, ollama, groq, litellm
 openai_api_key = ""
+openai_base_url = "https://api.openai.com/v1"
 openai_model_name = "gpt-4o-mini"
 temperature = 0.7
 max_tokens = 4096
@@ -34,8 +35,9 @@ transition = "fade_in"
 bgm_mode = "random"  # none, random, specific
 subtitle_enabled = true
 video_source = "pexels"
-pexels_api_keys = []
-pixabay_api_keys = []
+pexels_api_keys = []       # Get free key: https://www.pexels.com/api/
+pixabay_api_keys = []      # Get free key: https://pixabay.com/api/docs/
+coverr_api_key = ""
 
 [social]
 upload_post_enabled = false
