@@ -813,7 +813,7 @@ with tab_content:
 
 with tab_video:
     st.header("🎥 " + t("Video Render"))
-    st.caption("Tạo video chuyên nghiệp từ kịch bản sách — MoviePy engine, stock video, subtitle, BGM")
+    st.caption("Tạo video chuyên nghiệp từ kịch bản sách — Tự thu thập stock video/ảnh, phụ đề, BGM")
 
     from bookai.models import VideoAspect, TransitionMode, BgmMode, SubtitlePosition
 
@@ -866,6 +866,96 @@ with tab_video:
             index=1,
         )
 
+        # Max clip duration
+        max_clip_dur = st.slider("⏱️ Thời lượng tối đa/clip (giây)", 2, 10, 5)
+
+        # Concat mode
+        concat_mode = st.selectbox(
+            "Chế độ ghép clip",
+            ["random", "sequential"],
+            format_func=lambda x: {
+                "random": "🎲 Ngẫu nhiên",
+                "sequential": "📋 Theo thứ tự",
+            }.get(x, x),
+        )
+
+    # Material source — 3 modes
+    st.divider()
+    st.subheader("📹 Nguồn hình ảnh / video")
+    st.caption("Chọn nơi lấy video/ảnh nền cho video sách")
+
+    material_source = st.radio(
+        "Nguồn material",
+        ["pexels", "pixabay", "local", "ai"],
+        format_func=lambda x: {
+            "pexels": "🌐 Pexels — Tự tìm & tải stock video phù hợp (miễn phí)",
+            "pixabay": "🌐 Pixabay — Tự tìm & tải stock video phù hợp (miễn phí)",
+            "local": "📂 Thư mục local — Dùng ảnh/video của bạn",
+            "ai": "🎨 AI Background — Nền màu gradient (không cần material)",
+        }.get(x, x),
+        horizontal=True,
+    )
+
+    pexels_key = ""
+    pixabay_key = ""
+    stock_search_terms = ""
+    local_mat_dir = ""
+    uploaded_files = []
+
+    if material_source in ("pexels", "pixabay"):
+        mat_col1, mat_col2 = st.columns(2)
+        with mat_col1:
+            if material_source == "pexels":
+                pexels_key = st.text_input(
+                    "🔑 Pexels API Key",
+                    type="password",
+                    value=os.environ.get("PEXELS_API_KEY", ""),
+                    help="Đăng ký miễn phí tại pexels.com/api",
+                )
+            else:
+                pixabay_key = st.text_input(
+                    "🔑 Pixabay API Key",
+                    type="password",
+                    value=os.environ.get("PIXABAY_API_KEY", ""),
+                    help="Đăng ký miễn phí tại pixabay.com/api/docs",
+                )
+        with mat_col2:
+            stock_search_terms = st.text_input(
+                "🔍 Từ khóa tìm kiếm",
+                placeholder="reading, books, AI, motivation",
+                help="Phẩy cách. Để trống = tự tạo từ kịch bản",
+            )
+        st.info("💡 Hệ thống sẽ tự tìm kiếm stock video phù hợp với nội dung kịch bản, tải về và cắt ghép tự động")
+
+    elif material_source == "local":
+        local_mat_dir = st.text_input(
+            "📂 Đường dẫn thư mục ảnh/video",
+            placeholder="/path/to/your/materials",
+            help="Thư mục chứa ảnh (.jpg, .png) và video (.mp4, .mov) để ghép",
+        )
+        uploaded_files = st.file_uploader(
+            "Hoặc upload trực tiếp",
+            type=["jpg", "jpeg", "png", "gif", "mp4", "mov", "avi", "webm"],
+            accept_multiple_files=True,
+            help="Upload ảnh/video để dùng làm nền video",
+        )
+        st.info("💡 Ảnh sẽ tự chuyển thành clip video với hiệu ứng Ken Burns (zoom). Video sẽ được resize và cắt tự động")
+
+    # Audio & Subtitle settings
+    st.divider()
+    audio_sub_col1, audio_sub_col2 = st.columns(2)
+
+    with audio_sub_col1:
+        st.subheader("🔊 Giọng đọc (TTS)")
+        tts_voice_choice = st.selectbox(
+            "Giọng đọc",
+            ["vi-VN-HoaiMyNeural", "vi-VN-NamMinhNeural"],
+            format_func=lambda x: {
+                "vi-VN-HoaiMyNeural": "👩 Hoài My (Nữ, miền Nam)",
+                "vi-VN-NamMinhNeural": "👨 Nam Minh (Nam, miền Bắc)",
+            }.get(x, x),
+        )
+
         # BGM settings
         bgm_mode = st.selectbox(
             t("Background Music"),
@@ -877,10 +967,10 @@ with tab_video:
             }.get(x, x),
             index=1,
         )
-
         bgm_volume = st.slider(t("BGM Volume"), 0.0, 1.0, 0.15, step=0.05)
 
-        # Subtitle settings
+    with audio_sub_col2:
+        st.subheader("📝 Phụ đề (Subtitles)")
         enable_subtitle = st.checkbox(t("Enable Subtitles"), value=True)
         if enable_subtitle:
             sub_position = st.selectbox(
@@ -893,47 +983,15 @@ with tab_video:
                 }.get(x, x),
                 index=2,
             )
-            sub_font_size = st.slider(t("Font Size"), 16, 60, 32)
-            sub_font_color = st.color_picker(t("Font Color"), value="#FFFFFF")
-            sub_stroke_color = st.color_picker(t("Stroke Color"), value="#000000")
+            sub_font_size = st.slider(t("Font Size"), 16, 60, 42)
+            sub_col_a, sub_col_b = st.columns(2)
+            with sub_col_a:
+                sub_font_color = st.color_picker(t("Font Color"), value="#FFFFFF")
+            with sub_col_b:
+                sub_stroke_color = st.color_picker(t("Stroke Color"), value="#000000")
+            sub_bg_enabled = st.checkbox("Nền phụ đề bán trong suốt", value=False)
 
-    # Stock video source
-    st.divider()
-    st.subheader("📹 Video Stock")
-    sv_col1, sv_col2, sv_col3 = st.columns(3)
-    with sv_col1:
-        stock_source = st.selectbox(
-            t("Stock Video Source"),
-            ["none", "pexels", "pixabay"],
-            format_func=lambda x: {
-                "none": "Không dùng stock video",
-                "pexels": "Pexels (miễn phí)",
-                "pixabay": "Pixabay (miễn phí)",
-            }.get(x, x),
-        )
-    with sv_col2:
-        if stock_source == "pexels":
-            pexels_key = st.text_input(
-                t("Pexels API Key"),
-                type="password",
-                value=os.environ.get("PEXELS_API_KEY", ""),
-                help="Đăng ký miễn phí tại pexels.com/api",
-            )
-        elif stock_source == "pixabay":
-            pixabay_key = st.text_input(
-                t("Pixabay API Key"),
-                type="password",
-                value=os.environ.get("PIXABAY_API_KEY", ""),
-                help="Đăng ký miễn phí tại pixabay.com/api/docs",
-            )
-    with sv_col3:
-        stock_search_terms = st.text_input(
-            "Search terms",
-            placeholder="reading, books, motivation",
-            help="Từ khóa tìm video stock (phẩy cách)",
-        )
-
-    # Render button
+    # ===== RENDER BUTTON =====
     st.divider()
     render_video_btn = st.button(
         "🎬 " + t("Generate Video"),
@@ -943,83 +1001,117 @@ with tab_video:
     )
 
     if render_video_btn and video_script:
-        with st.spinner("Đang render video... (có thể mất 1-3 phút)"):
-            try:
-                from bookai.video_render import render_radio_video, VideoConfig
+        progress_bar = st.progress(0, text="Bắt đầu pipeline...")
 
-                with tempfile.TemporaryDirectory() as tmp_dir:
-                    output_path = os.path.join(tmp_dir, "output.mp4")
+        try:
+            from bookai.video_pipeline import create_book_video, PipelineConfig
 
-                    config = VideoConfig(
-                        aspect=video_aspect,
-                        transition=video_transition,
-                        bgm_mode=bgm_mode,
-                        bgm_volume=bgm_volume,
-                        subtitle_enabled=enable_subtitle,
+            # Handle uploaded files
+            local_mats = None
+            temp_upload_dir = None
+            if material_source == "local" and uploaded_files:
+                temp_upload_dir = tempfile.mkdtemp(prefix="bookai_uploads_")
+                local_mats = []
+                for uf in uploaded_files:
+                    save_path = os.path.join(temp_upload_dir, uf.name)
+                    with open(save_path, "wb") as f:
+                        f.write(uf.getbuffer())
+                    local_mats.append(save_path)
+
+            # Parse search terms
+            terms = None
+            if stock_search_terms:
+                terms = [t.strip() for t in stock_search_terms.split(",") if t.strip()]
+
+            # Build config
+            pipe_cfg = PipelineConfig(
+                material_source=material_source,
+                pexels_api_key=pexels_key,
+                pixabay_api_key=pixabay_key,
+                local_material_dir=local_mat_dir,
+                aspect=video_aspect,
+                max_clip_duration=max_clip_dur,
+                transition=video_transition,
+                concat_mode=concat_mode,
+                tts_voice=tts_voice_choice,
+                subtitle_enabled=enable_subtitle,
+                subtitle_position=sub_position if enable_subtitle else "bottom",
+                subtitle_font_size=sub_font_size if enable_subtitle else 42,
+                subtitle_color=sub_font_color if enable_subtitle else "#FFFFFF",
+                subtitle_stroke_color=sub_stroke_color if enable_subtitle else "#000000",
+                subtitle_bg_color="#00000090" if (enable_subtitle and sub_bg_enabled) else "",
+                bgm_mode=bgm_mode,
+                bgm_volume=bgm_volume,
+            )
+
+            # Output path
+            output_dir = Path("output/videos")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            import time as _time2
+            final_path = str(output_dir / f"bookai_{int(_time2.time())}.mp4")
+
+            progress_bar.progress(10, text="📝 Đang tạo giọng đọc (TTS)...")
+
+            result = create_book_video(
+                script_text=video_script,
+                book_title=st.session_state.get("book_metadata", {}).get("title", "BookAI"),
+                config=pipe_cfg,
+                output_path=final_path,
+                search_terms=terms,
+                local_materials=local_mats,
+            )
+
+            # Cleanup uploads
+            if temp_upload_dir:
+                import shutil
+                shutil.rmtree(temp_upload_dir, ignore_errors=True)
+
+            if result.ok:
+                progress_bar.progress(100, text="✅ Hoàn thành!")
+
+                st.success(
+                    f"✅ Video hoàn thành! "
+                    f"({result.duration_seconds:.1f}s, {result.file_size_mb:.1f}MB)"
+                )
+
+                # Show pipeline steps
+                steps_display = {
+                    "tts": "🔊 TTS", "subtitle": "📝 SRT",
+                    "materials": "📹 Materials", "clips": "✂️ Clips",
+                    "concat": "🔗 Concat", "subtitle_burn": "📝 Subtitle burn",
+                    "audio_bgm": "🎵 Audio+BGM", "complete": "✅ Done",
+                }
+                steps_str = " → ".join(
+                    steps_display.get(s, s) for s in result.steps_completed
+                )
+                st.caption(f"Pipeline: {steps_str}")
+
+                if result.search_terms_used:
+                    st.caption(f"🔍 Stock search terms: {', '.join(result.search_terms_used)}")
+                if result.material_paths:
+                    st.caption(f"📹 {len(result.material_paths)} material clips sử dụng")
+
+                st.video(final_path)
+
+                with open(final_path, "rb") as f:
+                    st.download_button(
+                        "⬇️ " + t("Download") + " Video",
+                        data=f.read(),
+                        file_name=os.path.basename(final_path),
+                        mime="video/mp4",
                     )
+            else:
+                progress_bar.progress(100, text="❌ Thất bại")
+                st.error(f"❌ Pipeline thất bại: {result.error}")
+                if result.steps_completed:
+                    st.caption(f"Steps completed: {', '.join(result.steps_completed)}")
 
-                    # TTS first
-                    st.info("🔊 Đang tạo giọng đọc (TTS)...")
-                    audio_path = os.path.join(tmp_dir, "voice.mp3")
-
-                    loop = asyncio.new_event_loop()
-                    import edge_tts
-                    communicate = edge_tts.Communicate(
-                        video_script, tts_voice_id, rate=tts_rate_str
-                    )
-                    loop.run_until_complete(communicate.save(audio_path))
-                    loop.close()
-
-                    if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                        st.success("✅ TTS hoàn thành")
-
-                        st.info("🎬 Đang render video...")
-
-                        # Build script proxy object
-                        class _ScriptProxy:
-                            pass
-                        _sp = _ScriptProxy()
-                        _sp.hook = video_script.split("\n")[0] if video_script else ""
-                        _sp.body = video_script
-                        _sp.cta = ""
-                        _sp.title = "BookAI Video"
-
-                        result = render_radio_video(
-                            script=_sp,
-                            audio_path=audio_path,
-                            output_path=output_path,
-                            config=config,
-                        )
-
-                        if result.ok:
-                            st.success(f"✅ Video hoàn thành! ({result.duration:.1f}s, {result.file_size_mb:.1f}MB)")
-                            # Copy to permanent location
-                            output_dir = Path("output/videos")
-                            output_dir.mkdir(parents=True, exist_ok=True)
-                            import shutil
-                            import time as _time2
-                            final_path = output_dir / f"bookai_{int(_time2.time())}.mp4"
-                            shutil.copy2(output_path, final_path)
-
-                            st.video(str(final_path))
-                            with open(final_path, "rb") as f:
-                                st.download_button(
-                                    "⬇️ " + t("Download") + " Video",
-                                    data=f.read(),
-                                    file_name=final_path.name,
-                                    mime="video/mp4",
-                                )
-                        else:
-                            st.error(f"❌ Render thất bại: {result.error}")
-                    else:
-                        st.error("❌ TTS không tạo được file audio")
-
-            except ImportError as e:
-                st.error(f"❌ Thiếu thư viện: {e}\n\nChạy: `pip install moviepy edge-tts`")
-            except Exception as e:
-                st.error(f"❌ Lỗi: {e}")
-                import traceback
-                st.code(traceback.format_exc()[-500:])
+        except ImportError as e:
+            st.error(f"❌ Thiếu thư viện: {e}\n\nChạy: `pip install edge-tts`")
+        except Exception as e:
+            st.error(f"❌ Lỗi: {e}")
+            import traceback
+            st.code(traceback.format_exc()[-500:])
 
     # Batch generation section
     st.divider()
@@ -1037,7 +1129,7 @@ with tab_video:
         )
 
     if st.button("🔄 " + t("Batch Generate"), disabled=not video_script):
-        st.info(f"Sẽ tạo {batch_count} video variants — cần API keys + MoviePy")
+        st.info(f"Sẽ tạo {batch_count} video variants — cần API keys")
         st.caption("💡 Batch generation sử dụng module `bookai.batch` với ThreadPoolExecutor")
         st.caption("💡 Trong production, dùng REST API: `POST /api/v1/batch`")
 
@@ -1631,6 +1723,28 @@ with tab_settings:
         for k, v in video_cfg.items():
             if "key" not in k.lower():
                 st.text(f"{k} = {v}")
+
+        st.divider()
+        st.subheader("🔑 Stock Video API Keys")
+        new_pexels = st.text_input(
+            "Pexels API Key",
+            value=video_cfg.get("pexels_api_key", os.environ.get("PEXELS_API_KEY", "")),
+            type="password",
+            key="settings_pexels_key",
+            help="https://www.pexels.com/api → Free signup",
+        )
+        new_pixabay = st.text_input(
+            "Pixabay API Key",
+            value=video_cfg.get("pixabay_api_key", os.environ.get("PIXABAY_API_KEY", "")),
+            type="password",
+            key="settings_pixabay_key",
+            help="https://pixabay.com/api/docs → Free signup",
+        )
+
+        if st.button("💾 Save Video API Keys", key="save_video_keys"):
+            set_value("video", "pexels_api_key", new_pexels)
+            set_value("video", "pixabay_api_key", new_pixabay)
+            st.success("✅ API Keys saved!")
 
     with config_tabs[4]:
         st.subheader("📤 Social Settings")
