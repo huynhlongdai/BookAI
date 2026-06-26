@@ -18,6 +18,61 @@ class SourceFormat(str, Enum):
     AUDIO = "audio"
 
 
+# ---------------------------------------------------------------------------
+# Video models (Phase 1 upgrade, inspired by MoneyPrinterTurbo)
+# ---------------------------------------------------------------------------
+
+
+class VideoAspect(str, Enum):
+    """Supported video aspect ratios."""
+
+    PORTRAIT = "9:16"    # TikTok, Instagram Reels, YouTube Shorts
+    LANDSCAPE = "16:9"   # YouTube, Facebook
+    SQUARE = "1:1"       # Instagram Feed
+
+    def to_resolution(self) -> tuple[int, int]:
+        mapping = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
+        return mapping[self.value]
+
+
+class TransitionMode(str, Enum):
+    """Video transition effects between clips."""
+
+    NONE = "none"
+    FADE_IN = "fade_in"
+    FADE_OUT = "fade_out"
+    SLIDE_IN = "slide_in"
+    SLIDE_OUT = "slide_out"
+    ZOOM_IN = "zoom_in"
+    ZOOM_OUT = "zoom_out"
+    SHUFFLE = "shuffle"
+
+
+class VideoConcatMode(str, Enum):
+    """How stock video clips are ordered."""
+
+    RANDOM = "random"
+    SEQUENTIAL = "sequential"
+    MATCH_SCRIPT = "match_script"
+
+
+class BgmMode(str, Enum):
+    """Background music mode."""
+
+    NONE = "none"
+    RANDOM = "random"
+    SPECIFIC = "specific"
+
+
+class SubtitlePosition(str, Enum):
+    """Subtitle vertical position."""
+
+    TOP = "top"
+    CENTER = "center"
+    BOTTOM = "bottom"
+    CUSTOM = "custom"
+
+
 class ChunkLabel(str, Enum):
     """Content labels for analyzed chunks."""
 

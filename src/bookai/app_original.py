@@ -1,9 +1,11 @@
-"""BookAI Streamlit Dashboard — v0.2.0.
+"""BookAI Streamlit Dashboard.
 
 Run locally:
     streamlit run src/bookai/app.py
 
-Features (original):
+Deploy free on HuggingFace Spaces or Streamlit Cloud.
+
+Features:
     📖 Upload book → convert → chunk → analyze (mock or real API)
     📊 Browse chunks with viral scores + labels
     ✅ Approve / reject content pieces
@@ -12,18 +14,10 @@ Features (original):
     🔊 TTS synthesis (Edge-TTS, Vietnamese)
     🖼️  Render quote card PNG images
     📦 Download full content pack as ZIP
-
-New in v0.2.0 (Phase 1-3 upgrade):
-    🎬 Video Studio — MoviePy video render + transitions + stock video
-    🔊 Multi-TTS — 5 providers, 10+ Vietnamese voices
-    📡 Batch Generation — multiple videos from one script
-    ⚙️ Settings — TOML config, LLM/TTS provider, i18n
-    📤 Social Post — cross-platform auto-upload
 """
 
 from __future__ import annotations
 
-import asyncio
 import io
 import json
 import os
@@ -43,18 +37,6 @@ from bookai.content_studio import generate_all, generate_all_with_ai
 from bookai.converter import convert_file
 from bookai.library import BookLibrary, PromptManager
 from bookai.models import BookResult, ChunkLabel
-
-# Phase 1-3 imports (safe — all tested)
-from bookai.i18n import available_languages, set_language, t
-from bookai.config import get_config, get_section, load_config, set_value
-
-# ---------------------------------------------------------------------------
-# Load config & i18n
-# ---------------------------------------------------------------------------
-
-_cfg = load_config(os.environ.get("BOOKAI_CONFIG", "config.toml"))
-_ui_lang = get_section("ui").get("language", "vi")
-set_language(_ui_lang)
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -93,15 +75,8 @@ st.markdown("""
     margin: 2px;
 }
 .stProgress > div > div { background-color: #7c3aed; }
-.video-card {
-    border: 1px solid #333;
-    border-radius: 8px;
-    padding: 12px;
-    margin: 8px 0;
-}
 </style>
 """, unsafe_allow_html=True)
-
 
 # ---------------------------------------------------------------------------
 # Session state helpers
@@ -119,8 +94,6 @@ def _init_state() -> None:
         "affiliate_config": {},
         "calendar_entries": [],
         "tts_results": {},
-        "video_tasks": {},
-        "batch_results": [],
         "processing": False,
         "_library": None,
         "_prompt_mgr": None,
@@ -150,29 +123,14 @@ def _get_prompt_mgr() -> PromptManager:
 # ---------------------------------------------------------------------------
 
 with st.sidebar:
-    st.title("📚 BookAI v0.2")
-    st.caption("Sách → Video + Content Affiliate tự động")
-    st.divider()
-
-    # Language selector
-    langs = available_languages()
-    lang_options = {l["code"]: l["name"] for l in langs}
-    selected_lang = st.selectbox(
-        "🌐 " + t("Language"),
-        options=list(lang_options.keys()),
-        format_func=lambda x: lang_options[x],
-        index=list(lang_options.keys()).index(_ui_lang) if _ui_lang in lang_options else 0,
-    )
-    if selected_lang != _ui_lang:
-        set_language(selected_lang)
-        set_value("ui", "language", selected_lang)
-
+    st.title("📚 BookAI")
+    st.caption("Sách → Content Affiliate tự động")
     st.divider()
 
     st.subheader("⚙️ AI Provider")
     provider = st.selectbox(
         "Provider",
-        ["mock (offline)", "custom API", "openai", "anthropic", "deepseek", "gemini", "ollama"],
+        ["mock (offline)", "custom API", "openai", "anthropic"],
         index=0,
     )
     provider_key = provider.split(" ")[0]
@@ -190,17 +148,6 @@ with st.sidebar:
         model = st.text_input("Model", value="WindsurfAPI/gemini-2.5-flash")
         api_key = st.text_input("API Key", type="password",
                                 value=os.environ.get("key_api", ""))
-    elif provider_key == "deepseek":
-        api_key = st.text_input("API Key", type="password",
-                                value=os.environ.get("DEEPSEEK_API_KEY", ""))
-        model = st.text_input("Model", value="deepseek-chat")
-    elif provider_key == "gemini":
-        api_key = st.text_input("API Key", type="password",
-                                value=os.environ.get("GEMINI_API_KEY", ""))
-        model = st.text_input("Model", value="gemini-2.0-flash")
-    elif provider_key == "ollama":
-        base_url = st.text_input("Ollama URL", value="http://localhost:11434/v1")
-        model = st.text_input("Model", value="llama3.1")
     elif provider_key in ("openai", "anthropic"):
         api_key = st.text_input("API Key", type="password",
                                 value=os.environ.get("OPENAI_API_KEY", ""))
@@ -221,61 +168,28 @@ with st.sidebar:
                              disabled=not ai_rewrite)
     image_theme = st.selectbox("Quote card theme",
                                ["dark", "light", "gradient_blue", "warm"])
-
-    # TTS provider selection (Phase 2)
-    st.divider()
-    st.subheader("🔊 TTS")
-    tts_provider = st.selectbox(
-        t("TTS Provider"),
-        ["edge_tts", "azure", "siliconflow", "elevenlabs", "no_voice"],
-        index=0,
+    tts_voice = st.selectbox(
+        "TTS Voice",
+        ["vi-VN-HoaiMyNeural (Female)", "vi-VN-NamMinhNeural (Male)"],
     )
-
-    if tts_provider == "edge_tts":
-        tts_voice = st.selectbox(
-            t("Voice"),
-            [
-                "vi-VN-HoaiMyNeural (Nữ, miền Bắc)",
-                "vi-VN-NamMinhNeural (Nam, miền Bắc)",
-            ],
-        )
-        tts_voice_id = tts_voice.split(" ")[0]
-    elif tts_provider == "azure":
-        azure_key = st.text_input("Azure Speech Key", type="password",
-                                  value=os.environ.get("AZURE_SPEECH_KEY", ""))
-        azure_region = st.text_input("Azure Region", value="southeastasia")
-        tts_voice = st.selectbox(
-            t("Voice"),
-            [
-                "vi-VN-HoaiMyNeural (Nữ)",
-                "vi-VN-NamMinhNeural (Nam)",
-            ],
-        )
-        tts_voice_id = tts_voice.split(" ")[0]
-    else:
-        tts_voice_id = "vi-VN-HoaiMyNeural"
-
-    tts_rate = st.slider(t("Speech Rate") + " (%)", -50, 50, 0)
-    tts_rate_str = f"+{tts_rate}%" if tts_rate >= 0 else f"{tts_rate}%"
+    tts_voice_id = tts_voice.split(" ")[0]
 
     st.divider()
     st.caption("💡 Tip: dùng `mock` để test offline, không cần API key.")
 
 
 # ---------------------------------------------------------------------------
-# Main tabs (original + new Phase 1-3 tabs)
+# Main tabs
 # ---------------------------------------------------------------------------
 
-tab_upload, tab_analyze, tab_content, tab_video, tab_calendar, tab_library, tab_prompts, tab_export, tab_settings = st.tabs([
-    "📖 Upload",
-    "📊 " + t("Book Analysis"),
-    "🎬 " + t("Content Studio"),
-    "🎥 " + t("Video Render"),
-    "📅 " + t("Content Calendar"),
-    "📚 Thư viện",
+tab_upload, tab_analyze, tab_content, tab_calendar, tab_library, tab_prompts, tab_export = st.tabs([
+    "📖 Upload & Process",
+    "📊 Phân tích",
+    "🎬 Content Studio",
+    "📅 Lịch đăng",
+    "📚 Thư viện sách",
     "🔧 Prompt",
     "📦 Export",
-    "⚙️ " + t("Settings"),
 ])
 
 # ===========================================================================
@@ -312,14 +226,15 @@ with tab_upload:
             tmp.write(uploaded.getvalue())
             tmp_path = tmp.name
 
+        # ── Progress UI ──────────────────────────────────────
         st.markdown("---")
         st.markdown("### ⚙️ Đang xử lý...")
         col_prog, col_time = st.columns([4, 1])
         progress = col_prog.progress(0)
         timer_txt = col_time.empty()
 
-        step_box   = st.empty()
-        detail_box = st.empty()
+        step_box   = st.empty()   # current step description
+        detail_box = st.empty()   # detail / chunk counter
         log_box    = st.expander("📋 Chi tiết log", expanded=False)
         logs: list[str] = []
 
@@ -336,6 +251,7 @@ with tab_upload:
                 st.text("\n".join(logs[-20:]))
 
         try:
+            # ── Step 1: Convert ──────────────────────────────
             step_box.info("**Bước 1/3** — 📖 Đang đọc và convert file...")
             detail_box.caption(f"File: `{uploaded.name}` ({uploaded.size/1024:.0f} KB)")
             progress.progress(5)
@@ -350,6 +266,7 @@ with tab_upload:
                 f"{metadata.chapters} chương | {len(markdown):,} ký tự"
             )
 
+            # ── Step 2: Chunk ─────────────────────────────────
             step_box.info("**Bước 2/3** — ✂️ Đang tách thành chunks...")
             progress.progress(25)
             _log(f"[Chunk] max_tokens={max_tokens}")
@@ -366,6 +283,7 @@ with tab_upload:
                 f"Sẽ phân tích **{len(to_analyze)}** chunks đầu tiên"
             )
 
+            # ── Step 3: Analyze chunk-by-chunk ───────────────
             step_box.info(
                 f"**Bước 3/3** — 🤖 Đang phân tích AI "
                 f"(**{len(to_analyze)}** chunks, provider: `{provider_key}`)..."
@@ -378,6 +296,7 @@ with tab_upload:
             prog_end   = 90
 
             if provider_key == "mock":
+                # Mock: fast, show per-chunk progress
                 from bookai.analyzer import _mock_analyze
                 for i, chunk in enumerate(to_analyze):
                     result_chunk = _mock_analyze(chunk)
@@ -393,6 +312,7 @@ with tab_upload:
                     if (i + 1) % 5 == 0 or i == len(to_analyze) - 1:
                         _log(f"  [{i+1}/{len(to_analyze)}] score={result_chunk.viral_score:.1f}")
             else:
+                # Real API: analyze all then update
                 chunk_counter.markdown(
                     f"⏳ Đang gửi **{len(to_analyze)}** chunks tới `{provider_key}` API..."
                 )
@@ -412,6 +332,7 @@ with tab_upload:
                 )
                 _log(f"[Analyze OK] {len(analyzed)} results avg_score={avg:.1f}")
 
+            # ── Build result ──────────────────────────────────
             progress.progress(95)
             result = BookResult(
                 metadata=metadata,
@@ -424,15 +345,17 @@ with tab_upload:
             st.session_state.book_result = result
             st.session_state.content_pack = None
 
+            # ── Auto-save to library ──────────────────────────
             try:
                 lib = _get_library()
                 lib.save_book(result)
             except Exception:
-                pass
+                pass  # library save failure should not break main flow
 
             progress.progress(100)
             _tick()
 
+            # ── Summary card ──────────────────────────────────
             elapsed = _time.time() - t_start
             avg_score = sum(a.viral_score for a in analyzed) / len(analyzed) if analyzed else 0
             high = sum(1 for a in analyzed if a.viral_score >= 7)
@@ -474,6 +397,7 @@ with tab_upload:
         except Exception as e:
             st.error(f"❌ {e}")
 
+    # Quick status
     if st.session_state.book_result:
         r = st.session_state.book_result
         st.divider()
@@ -497,6 +421,7 @@ with tab_analyze:
         st.header(f"📊 {r.metadata.title}")
         st.caption(f"Tác giả: {r.metadata.author} | {len(r.analyzed)} chunks đã phân tích")
 
+        # Stats row
         total = len(r.analyzed)
         high = sum(1 for a in r.analyzed if a.viral_score >= 7)
         mid = sum(1 for a in r.analyzed if 4 <= a.viral_score < 7)
@@ -508,6 +433,7 @@ with tab_analyze:
         c3.metric("⚠️ Mid (4-7)", mid)
         c4.metric("❄️ Low (<4)", low)
 
+        # Label distribution
         st.subheader("Label distribution")
         label_counts: dict[str, int] = {}
         for a in r.analyzed:
@@ -521,6 +447,7 @@ with tab_analyze:
             ).sort_values("Count", ascending=False)
             st.bar_chart(df_labels.set_index("Label"))
 
+        # Chunk browser
         st.subheader("🔍 Duyệt Chunks")
         filter_label = st.selectbox(
             "Filter by label",
@@ -580,7 +507,7 @@ with tab_content:
         st.info("👆 Upload sách trước ở tab **Upload & Process**.")
     else:
         r = st.session_state.book_result
-        st.header("🎬 " + t("Content Studio"))
+        st.header("🎬 Content Studio")
 
         col_gen, col_status = st.columns([1, 2])
         with col_gen:
@@ -607,6 +534,7 @@ with tab_content:
                         pack = generate_all(r.analyzed, r.metadata)
 
                     st.session_state.content_pack = pack
+                    # Default all approved
                     st.session_state.approved_scripts = set(
                         range(len(pack.radio_scripts))
                     )
@@ -627,7 +555,7 @@ with tab_content:
 
         if st.session_state.content_pack:
             pack = st.session_state.content_pack
-            total_pieces = pack.total_pieces
+            total = pack.total_pieces
             approved_count = (
                 len(st.session_state.approved_scripts)
                 + len(st.session_state.approved_quotes)
@@ -636,7 +564,7 @@ with tab_content:
             )
 
             c1, c2, c3, c4, c5 = st.columns(5)
-            c1.metric("Total", total_pieces)
+            c1.metric("Total", total)
             c2.metric("🎙️ Scripts", len(pack.radio_scripts))
             c3.metric("📸 Quotes", len(pack.quote_cards))
             c4.metric("📋 Listicles", len(pack.listicles))
@@ -662,9 +590,10 @@ with tab_content:
                         st.markdown(f"**📢 CTA:**\n{script.cta}")
                         st.caption(
                             f"~{script.estimated_seconds}s | "
-                            + " ".join(f"#{t_tag}" for t_tag in script.hashtags)
+                            + " ".join(f"#{t}" for t in script.hashtags)
                         )
 
+                        # TTS button
                         tts_col1, tts_col2 = st.columns([1, 3])
                         with tts_col1:
                             if st.button("🔊 TTS", key=f"tts_{i}"):
@@ -682,14 +611,14 @@ with tab_content:
                                 with tempfile.NamedTemporaryFile(
                                     suffix=".mp3", delete=False
                                 ) as tf:
-                                    tts_result = synthesize_script(
+                                    result = synthesize_script(
                                         proxy, tf.name, voice=tts_voice_id
                                     )
-                                    if tts_result.ok:
+                                    if result.ok:
                                         audio_bytes = Path(tf.name).read_bytes()
                                         st.session_state.tts_results[i] = audio_bytes
                                     else:
-                                        st.error(tts_result.error)
+                                        st.error(result.error)
 
                         if i in st.session_state.tts_results:
                             st.audio(
@@ -808,242 +737,7 @@ with tab_content:
 
 
 # ===========================================================================
-# TAB 4 — Video Studio (NEW — Phase 1 + 2)
-# ===========================================================================
-
-with tab_video:
-    st.header("🎥 " + t("Video Render"))
-    st.caption("Tạo video chuyên nghiệp từ kịch bản sách — MoviePy engine, stock video, subtitle, BGM")
-
-    from bookai.models import VideoAspect, TransitionMode, BgmMode, SubtitlePosition
-
-    v_col1, v_col2 = st.columns(2)
-
-    with v_col1:
-        st.subheader("📝 " + t("Script Text"))
-        video_script = st.text_area(
-            "Kịch bản video",
-            height=200,
-            placeholder="Nhập kịch bản video...\n\nVí dụ:\nBạn có biết cuốn sách Atomic Habits đã thay đổi cuộc sống của hàng triệu người?\n\nThói quen nhỏ tạo nên kết quả lớn. James Clear chỉ ra rằng chỉ cần cải thiện 1% mỗi ngày...",
-            key="video_script",
-        )
-
-        # Pre-fill from content pack
-        if st.session_state.content_pack and not video_script:
-            pack = st.session_state.content_pack
-            if pack.radio_scripts:
-                s = pack.radio_scripts[0]
-                st.caption(f"💡 Tip: Bạn có {len(pack.radio_scripts)} scripts sẵn từ Content Studio")
-                if st.button("📋 Dùng Script #1"):
-                    st.session_state.video_script = f"{s.hook}\n\n{s.body}\n\n{s.cta}"
-                    st.rerun()
-
-    with v_col2:
-        st.subheader("⚙️ " + t("Video Settings"))
-
-        video_aspect = st.selectbox(
-            t("Video Ratio"),
-            [a.value for a in VideoAspect],
-            format_func=lambda x: {
-                "9:16": "📱 Dọc 9:16 (TikTok/Reels)",
-                "16:9": "🖥️ Ngang 16:9 (YouTube)",
-                "1:1": "⬜ Vuông 1:1 (Instagram)",
-            }.get(x, x),
-        )
-
-        video_transition = st.selectbox(
-            t("Transition Mode"),
-            [m.value for m in TransitionMode],
-            format_func=lambda x: {
-                "none": "Không chuyển đổi",
-                "fade_in": "Fade In",
-                "fade_out": "Fade Out",
-                "slide_in": "Slide In (trái → phải)",
-                "slide_out": "Slide Out (phải → trái)",
-                "zoom_ken_burns": "Zoom Ken Burns",
-                "shuffle": "🎲 Ngẫu nhiên",
-            }.get(x, x),
-            index=1,
-        )
-
-        # BGM settings
-        bgm_mode = st.selectbox(
-            t("Background Music"),
-            [m.value for m in BgmMode],
-            format_func=lambda x: {
-                "none": "🔇 " + t("No Background Music"),
-                "random": "🎲 " + t("Random Background Music"),
-                "specific": "🎵 Chọn bài cụ thể",
-            }.get(x, x),
-            index=1,
-        )
-
-        bgm_volume = st.slider(t("BGM Volume"), 0.0, 1.0, 0.15, step=0.05)
-
-        # Subtitle settings
-        enable_subtitle = st.checkbox(t("Enable Subtitles"), value=True)
-        if enable_subtitle:
-            sub_position = st.selectbox(
-                t("Subtitle Position"),
-                [p.value for p in SubtitlePosition],
-                format_func=lambda x: {
-                    "top": "⬆️ " + t("Top"),
-                    "center": "⏺️ " + t("Center"),
-                    "bottom": "⬇️ " + t("Bottom"),
-                }.get(x, x),
-                index=2,
-            )
-            sub_font_size = st.slider(t("Font Size"), 16, 60, 32)
-            sub_font_color = st.color_picker(t("Font Color"), value="#FFFFFF")
-            sub_stroke_color = st.color_picker(t("Stroke Color"), value="#000000")
-
-    # Stock video source
-    st.divider()
-    st.subheader("📹 Video Stock")
-    sv_col1, sv_col2, sv_col3 = st.columns(3)
-    with sv_col1:
-        stock_source = st.selectbox(
-            t("Stock Video Source"),
-            ["none", "pexels", "pixabay"],
-            format_func=lambda x: {
-                "none": "Không dùng stock video",
-                "pexels": "Pexels (miễn phí)",
-                "pixabay": "Pixabay (miễn phí)",
-            }.get(x, x),
-        )
-    with sv_col2:
-        if stock_source == "pexels":
-            pexels_key = st.text_input(
-                t("Pexels API Key"),
-                type="password",
-                value=os.environ.get("PEXELS_API_KEY", ""),
-                help="Đăng ký miễn phí tại pexels.com/api",
-            )
-        elif stock_source == "pixabay":
-            pixabay_key = st.text_input(
-                t("Pixabay API Key"),
-                type="password",
-                value=os.environ.get("PIXABAY_API_KEY", ""),
-                help="Đăng ký miễn phí tại pixabay.com/api/docs",
-            )
-    with sv_col3:
-        stock_search_terms = st.text_input(
-            "Search terms",
-            placeholder="reading, books, motivation",
-            help="Từ khóa tìm video stock (phẩy cách)",
-        )
-
-    # Render button
-    st.divider()
-    render_video_btn = st.button(
-        "🎬 " + t("Generate Video"),
-        type="primary",
-        use_container_width=True,
-        disabled=not video_script,
-    )
-
-    if render_video_btn and video_script:
-        with st.spinner("Đang render video... (có thể mất 1-3 phút)"):
-            try:
-                from bookai.video_render import render_radio_video, VideoConfig
-
-                with tempfile.TemporaryDirectory() as tmp_dir:
-                    output_path = os.path.join(tmp_dir, "output.mp4")
-
-                    config = VideoConfig(
-                        aspect=video_aspect,
-                        transition=video_transition,
-                        bgm_mode=bgm_mode,
-                        bgm_volume=bgm_volume,
-                        subtitle_enabled=enable_subtitle,
-                    )
-
-                    # TTS first
-                    st.info("🔊 Đang tạo giọng đọc (TTS)...")
-                    audio_path = os.path.join(tmp_dir, "voice.mp3")
-
-                    loop = asyncio.new_event_loop()
-                    import edge_tts
-                    communicate = edge_tts.Communicate(
-                        video_script, tts_voice_id, rate=tts_rate_str
-                    )
-                    loop.run_until_complete(communicate.save(audio_path))
-                    loop.close()
-
-                    if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                        st.success("✅ TTS hoàn thành")
-
-                        st.info("🎬 Đang render video...")
-
-                        # Build script proxy object
-                        class _ScriptProxy:
-                            pass
-                        _sp = _ScriptProxy()
-                        _sp.hook = video_script.split("\n")[0] if video_script else ""
-                        _sp.body = video_script
-                        _sp.cta = ""
-                        _sp.title = "BookAI Video"
-
-                        result = render_radio_video(
-                            script=_sp,
-                            audio_path=audio_path,
-                            output_path=output_path,
-                            config=config,
-                        )
-
-                        if result.ok:
-                            st.success(f"✅ Video hoàn thành! ({result.duration:.1f}s, {result.file_size_mb:.1f}MB)")
-                            # Copy to permanent location
-                            output_dir = Path("output/videos")
-                            output_dir.mkdir(parents=True, exist_ok=True)
-                            import shutil
-                            import time as _time2
-                            final_path = output_dir / f"bookai_{int(_time2.time())}.mp4"
-                            shutil.copy2(output_path, final_path)
-
-                            st.video(str(final_path))
-                            with open(final_path, "rb") as f:
-                                st.download_button(
-                                    "⬇️ " + t("Download") + " Video",
-                                    data=f.read(),
-                                    file_name=final_path.name,
-                                    mime="video/mp4",
-                                )
-                        else:
-                            st.error(f"❌ Render thất bại: {result.error}")
-                    else:
-                        st.error("❌ TTS không tạo được file audio")
-
-            except ImportError as e:
-                st.error(f"❌ Thiếu thư viện: {e}\n\nChạy: `pip install moviepy edge-tts`")
-            except Exception as e:
-                st.error(f"❌ Lỗi: {e}")
-                import traceback
-                st.code(traceback.format_exc()[-500:])
-
-    # Batch generation section
-    st.divider()
-    st.subheader("📦 " + t("Batch Generate"))
-    st.caption("Tạo nhiều video variants từ một kịch bản — tự động thay đổi transition, aspect, stock footage")
-
-    batch_col1, batch_col2 = st.columns(2)
-    with batch_col1:
-        batch_count = st.number_input(t("Number of Videos"), min_value=1, max_value=10, value=3)
-    with batch_col2:
-        batch_vary = st.multiselect(
-            "Thay đổi tự động",
-            ["transition", "aspect", "stock_footage"],
-            default=["transition"],
-        )
-
-    if st.button("🔄 " + t("Batch Generate"), disabled=not video_script):
-        st.info(f"Sẽ tạo {batch_count} video variants — cần API keys + MoviePy")
-        st.caption("💡 Batch generation sử dụng module `bookai.batch` với ThreadPoolExecutor")
-        st.caption("💡 Trong production, dùng REST API: `POST /api/v1/batch`")
-
-
-# ===========================================================================
-# TAB 5 — Lịch đăng
+# TAB 4 — Lịch đăng
 # ===========================================================================
 
 with tab_calendar:
@@ -1051,7 +745,7 @@ with tab_calendar:
         st.info("👆 Generate content ở tab **Content Studio** trước.")
     else:
         pack = st.session_state.content_pack
-        st.header("📅 " + t("Content Calendar"))
+        st.header("📅 Content Calendar")
 
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -1060,7 +754,7 @@ with tab_calendar:
             days_input = st.slider("Số ngày", 7, 60, 30)
         with c3:
             platforms_input = st.multiselect(
-                t("Platforms"),
+                "Platforms",
                 ["tiktok", "instagram", "youtube", "facebook", "blog"],
                 default=["tiktok", "instagram"],
             )
@@ -1096,6 +790,7 @@ with tab_calendar:
         if st.session_state.calendar_entries:
             entries = st.session_state.calendar_entries
 
+            # Week filter
             week_filter = st.selectbox(
                 "Xem theo tuần",
                 ["Tất cả"] + [f"Tuần {i}" for i in range(1, 5)],
@@ -1116,6 +811,7 @@ with tab_calendar:
             else:
                 display_entries = entries
 
+            # Table view
             import pandas as pd
 
             df = pd.DataFrame([
@@ -1133,35 +829,219 @@ with tab_calendar:
             ])
             st.dataframe(df, use_container_width=True, height=400)
 
-    # Social post section
+
+# ===========================================================================
+# TAB 5 — Export
+# ===========================================================================
+
+with tab_export:
+    st.header("📦 Export")
+
+    has_result = st.session_state.book_result is not None
+    has_pack = st.session_state.content_pack is not None
+    has_calendar = len(st.session_state.calendar_entries) > 0
+
+    # --- Export results.json ---
+    st.subheader("📄 Analysis Results (results.json)")
+    if has_result:
+        result_json = json.dumps(
+            st.session_state.book_result.model_dump(),
+            ensure_ascii=False,
+            indent=2,
+        )
+        st.download_button(
+            "⬇️ Download results.json",
+            data=result_json.encode("utf-8"),
+            file_name="results.json",
+            mime="application/json",
+        )
+    else:
+        st.caption("Chưa có dữ liệu — upload sách trước.")
+
     st.divider()
-    st.subheader("📤 " + t("Cross Post"))
-    st.caption("Đăng video lên TikTok, Instagram, YouTube, Facebook tự động")
 
-    sp_col1, sp_col2 = st.columns(2)
-    with sp_col1:
-        social_platforms = st.multiselect(
-            t("Platforms"),
-            ["tiktok", "instagram", "youtube", "facebook"],
-            default=["tiktok", "instagram"],
-            key="social_platforms",
+    # --- Export content.json ---
+    st.subheader("🎬 Content Pack (content.json)")
+    if has_pack:
+        pack_json = json.dumps(
+            st.session_state.content_pack.model_dump(),
+            ensure_ascii=False,
+            indent=2,
         )
-    with sp_col2:
-        upload_post_key = st.text_input(
-            "Upload-Post API Key",
-            type="password",
-            value=os.environ.get("UPLOAD_POST_API_KEY", ""),
+        st.download_button(
+            "⬇️ Download content.json",
+            data=pack_json.encode("utf-8"),
+            file_name="content.json",
+            mime="application/json",
         )
-        auto_upload = st.checkbox(t("Auto Upload"), value=False)
 
-    st.caption(
-        "💡 Cần Upload-Post API key (upload-post.com) — "
-        "hoặc cấu hình webhook cho Zapier/n8n"
-    )
+        # Export approved only
+        st.caption("Hoặc export chỉ approved:")
+        pack = st.session_state.content_pack
+        approved_data = {
+            "book_title": pack.book_title,
+            "radio_scripts": [
+                pack.radio_scripts[i].model_dump()
+                for i in sorted(st.session_state.approved_scripts)
+                if i < len(pack.radio_scripts)
+            ],
+            "quote_cards": [
+                pack.quote_cards[i].model_dump()
+                for i in sorted(st.session_state.approved_quotes)
+                if i < len(pack.quote_cards)
+            ],
+            "listicles": [
+                pack.listicles[i].model_dump()
+                for i in sorted(st.session_state.approved_listicles)
+                if i < len(pack.listicles)
+            ],
+            "captions": [
+                pack.captions[i].model_dump()
+                for i in sorted(st.session_state.approved_captions)
+                if i < len(pack.captions)
+            ],
+        }
+        st.download_button(
+            "⬇️ Download content_approved.json",
+            data=json.dumps(approved_data, ensure_ascii=False, indent=2).encode("utf-8"),
+            file_name="content_approved.json",
+            mime="application/json",
+        )
+    else:
+        st.caption("Chưa có content — generate ở tab Content Studio trước.")
+
+    st.divider()
+
+    # --- Export calendar.csv ---
+    st.subheader("📅 Content Calendar (calendar.csv)")
+    if has_calendar:
+        from bookai.calendar import save_calendar_csv
+
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tf:
+            save_calendar_csv(st.session_state.calendar_entries, tf.name)
+            csv_bytes = Path(tf.name).read_bytes()
+        st.download_button(
+            "⬇️ Download calendar.csv",
+            data=csv_bytes,
+            file_name="calendar.csv",
+            mime="text/csv",
+        )
+    else:
+        st.caption("Chưa có lịch — tạo ở tab Lịch đăng trước.")
+
+    st.divider()
+
+    # --- Full ZIP export ---
+    st.subheader("📦 Full Content Pack (ZIP)")
+    if has_pack:
+        if st.button("🔄 Build ZIP", type="primary"):
+            with st.spinner("Đang đóng gói..."):
+                try:
+                    pack = st.session_state.content_pack
+
+                    buf = io.BytesIO()
+                    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                        # results.json
+                        if has_result:
+                            zf.writestr(
+                                "results.json",
+                                json.dumps(
+                                    st.session_state.book_result.model_dump(),
+                                    ensure_ascii=False, indent=2
+                                ),
+                            )
+
+                        # content.json (approved)
+                        zf.writestr(
+                            "content_approved.json",
+                            json.dumps(approved_data, ensure_ascii=False, indent=2),
+                        )
+
+                        # calendar.csv
+                        if has_calendar:
+                            with tempfile.NamedTemporaryFile(
+                                suffix=".csv", delete=False
+                            ) as tf:
+                                from bookai.calendar import save_calendar_csv
+                                save_calendar_csv(
+                                    st.session_state.calendar_entries, tf.name
+                                )
+                                zf.write(tf.name, "calendar.csv")
+                                Path(tf.name).unlink(missing_ok=True)
+
+                        # Quote card PNGs
+                        from bookai.quote_renderer import render_quote_card
+                        approved_cards = [
+                            pack.quote_cards[i]
+                            for i in sorted(st.session_state.approved_quotes)
+                            if i < len(pack.quote_cards)
+                        ]
+                        with tempfile.TemporaryDirectory() as tmp:
+                            for j, card in enumerate(approved_cards):
+                                out = Path(tmp) / f"quote_{j:02d}.png"
+                                render_quote_card(
+                                    quote_text=card.quote_text,
+                                    book_title=card.book_title,
+                                    author=card.author,
+                                    output_path=out,
+                                    theme=image_theme,
+                                )
+                                zf.write(str(out), f"quote_cards/quote_{j:02d}.png")
+
+                        # Radio scripts as TXT
+                        for i in sorted(st.session_state.approved_scripts):
+                            if i < len(pack.radio_scripts):
+                                s = pack.radio_scripts[i]
+                                txt = f"# {s.title}\n\n## HOOK\n{s.hook}\n\n## BODY\n{s.body}\n\n## CTA\n{s.cta}\n"
+                                zf.writestr(f"scripts/script_{i+1:02d}.txt", txt)
+
+                    buf.seek(0)
+                    book_slug = (
+                        (pack.book_title or "bookai")
+                        .lower().replace(" ", "_")[:20]
+                    )
+                    st.download_button(
+                        "⬇️ Download ZIP",
+                        data=buf.getvalue(),
+                        file_name=f"{book_slug}_content_pack.zip",
+                        mime="application/zip",
+                    )
+                    st.success("✅ ZIP sẵn sàng!")
+                except Exception as e:
+                    st.error(f"❌ {e}")
+    else:
+        st.caption("Chưa có content — generate ở tab Content Studio trước.")
+
+    # --- HuggingFace deploy hint ---
+    st.divider()
+    with st.expander("🚀 Deploy lên HuggingFace Spaces (miễn phí)"):
+        st.markdown("""
+        **Bước 1:** Tạo Space tại https://huggingface.co/new-space
+        - SDK: **Streamlit**
+        - Visibility: Private hoặc Public
+
+        **Bước 2:** Upload các files:
+        ```
+        app.py  (← file này, rename từ src/bookai/app.py)
+        requirements.txt
+        ```
+
+        **Bước 3:** requirements.txt nội dung:
+        ```
+        bookai @ git+https://github.com/bilonglo9x-code/bookai.git@initial-setup
+        streamlit
+        edge-tts
+        ```
+
+        **Bước 4:** Thêm API key vào Secrets của Space (Settings → Secrets):
+        ```
+        key_api = your_api_key_here
+        ```
+        """)
 
 
 # ===========================================================================
-# TAB 6 — Thư viện sách
+# TAB 5 — Thư viện sách
 # ===========================================================================
 
 with tab_library:
@@ -1172,6 +1052,7 @@ with tab_library:
     if stats["total"] == 0:
         st.info("Chưa có sách nào. Upload và phân tích sách ở tab **Upload & Process** — sẽ tự động lưu vào thư viện.")
     else:
+        # ── Stats bar ──────────────────────────────────────────
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("📚 Tổng sách", stats["total"])
         c2.metric("🔬 Tổng chunks", stats["total_chunks"])
@@ -1180,6 +1061,7 @@ with tab_library:
 
         st.divider()
 
+        # ── Search ─────────────────────────────────────────────
         search_q = st.text_input("🔍 Tìm kiếm", placeholder="Tên sách hoặc tác giả...")
         sort_col = st.selectbox(
             "Sắp xếp theo",
@@ -1194,8 +1076,10 @@ with tab_library:
         )
 
         entries = lib.search(search_q) if search_q else lib.list_books(sort_by=sort_col)
+
         st.caption(f"Hiển thị {len(entries)} sách")
 
+        # ── Book cards ─────────────────────────────────────────
         for entry in entries:
             with st.container():
                 col_info, col_score, col_actions = st.columns([4, 2, 2])
@@ -1258,7 +1142,7 @@ with tab_library:
 
 
 # ===========================================================================
-# TAB 7 — Prompt Manager
+# TAB 6 — Prompt Manager
 # ===========================================================================
 
 with tab_prompts:
@@ -1284,7 +1168,7 @@ with tab_prompts:
                 value=p["template"],
                 height=300,
                 key=f"prompt_{key}",
-                help="Dùng {variable} cho các biến động.",
+                help="Dùng {variable} cho các biến động. Xem mô tả để biết biến nào có sẵn.",
             )
 
             col_save, col_reset, col_test = st.columns([1, 1, 2])
@@ -1323,6 +1207,7 @@ with tab_prompts:
             st.success("Đã reset tất cả prompts về mặc định")
             st.rerun()
     with col_b:
+        # Export prompts
         prompts_export = {p["key"]: p["template"] for p in pm.list_prompts()}
         st.download_button(
             "⬇️ Export prompts.json",
@@ -1332,6 +1217,7 @@ with tab_prompts:
             use_container_width=True,
         )
 
+    # Import prompts
     st.subheader("📥 Import prompts")
     prompt_file = st.file_uploader("Upload prompts.json", type=["json"], key="import_prompts")
     if prompt_file:
@@ -1344,357 +1230,3 @@ with tab_prompts:
             st.rerun()
         except Exception as e:
             st.error(f"❌ {e}")
-
-
-# ===========================================================================
-# TAB 8 — Export
-# ===========================================================================
-
-with tab_export:
-    st.header("📦 Export")
-
-    has_result = st.session_state.book_result is not None
-    has_pack = st.session_state.content_pack is not None
-    has_calendar = len(st.session_state.calendar_entries) > 0
-
-    st.subheader("📄 Analysis Results (results.json)")
-    if has_result:
-        result_json = json.dumps(
-            st.session_state.book_result.model_dump(),
-            ensure_ascii=False,
-            indent=2,
-        )
-        st.download_button(
-            "⬇️ Download results.json",
-            data=result_json.encode("utf-8"),
-            file_name="results.json",
-            mime="application/json",
-        )
-    else:
-        st.caption("Chưa có dữ liệu — upload sách trước.")
-
-    st.divider()
-
-    st.subheader("🎬 Content Pack (content.json)")
-    if has_pack:
-        pack_json = json.dumps(
-            st.session_state.content_pack.model_dump(),
-            ensure_ascii=False,
-            indent=2,
-        )
-        st.download_button(
-            "⬇️ Download content.json",
-            data=pack_json.encode("utf-8"),
-            file_name="content.json",
-            mime="application/json",
-        )
-
-        st.caption("Hoặc export chỉ approved:")
-        pack = st.session_state.content_pack
-        approved_data = {
-            "book_title": pack.book_title,
-            "radio_scripts": [
-                pack.radio_scripts[i].model_dump()
-                for i in sorted(st.session_state.approved_scripts)
-                if i < len(pack.radio_scripts)
-            ],
-            "quote_cards": [
-                pack.quote_cards[i].model_dump()
-                for i in sorted(st.session_state.approved_quotes)
-                if i < len(pack.quote_cards)
-            ],
-            "listicles": [
-                pack.listicles[i].model_dump()
-                for i in sorted(st.session_state.approved_listicles)
-                if i < len(pack.listicles)
-            ],
-            "captions": [
-                pack.captions[i].model_dump()
-                for i in sorted(st.session_state.approved_captions)
-                if i < len(pack.captions)
-            ],
-        }
-        st.download_button(
-            "⬇️ Download content_approved.json",
-            data=json.dumps(approved_data, ensure_ascii=False, indent=2).encode("utf-8"),
-            file_name="content_approved.json",
-            mime="application/json",
-        )
-    else:
-        st.caption("Chưa có content — generate ở tab Content Studio trước.")
-
-    st.divider()
-
-    st.subheader("📅 Content Calendar (calendar.csv)")
-    if has_calendar:
-        from bookai.calendar import save_calendar_csv
-
-        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tf:
-            save_calendar_csv(st.session_state.calendar_entries, tf.name)
-            csv_bytes = Path(tf.name).read_bytes()
-        st.download_button(
-            "⬇️ Download calendar.csv",
-            data=csv_bytes,
-            file_name="calendar.csv",
-            mime="text/csv",
-        )
-    else:
-        st.caption("Chưa có lịch — tạo ở tab Lịch đăng trước.")
-
-    st.divider()
-
-    st.subheader("📦 Full Content Pack (ZIP)")
-    if has_pack:
-        if st.button("🔄 Build ZIP", type="primary"):
-            with st.spinner("Đang đóng gói..."):
-                try:
-                    pack = st.session_state.content_pack
-                    approved_data = {
-                        "book_title": pack.book_title,
-                        "radio_scripts": [
-                            pack.radio_scripts[i].model_dump()
-                            for i in sorted(st.session_state.approved_scripts)
-                            if i < len(pack.radio_scripts)
-                        ],
-                        "quote_cards": [
-                            pack.quote_cards[i].model_dump()
-                            for i in sorted(st.session_state.approved_quotes)
-                            if i < len(pack.quote_cards)
-                        ],
-                    }
-
-                    buf = io.BytesIO()
-                    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                        if has_result:
-                            zf.writestr(
-                                "results.json",
-                                json.dumps(
-                                    st.session_state.book_result.model_dump(),
-                                    ensure_ascii=False, indent=2
-                                ),
-                            )
-
-                        zf.writestr(
-                            "content_approved.json",
-                            json.dumps(approved_data, ensure_ascii=False, indent=2),
-                        )
-
-                        if has_calendar:
-                            with tempfile.NamedTemporaryFile(
-                                suffix=".csv", delete=False
-                            ) as tf_cal:
-                                from bookai.calendar import save_calendar_csv
-                                save_calendar_csv(
-                                    st.session_state.calendar_entries, tf_cal.name
-                                )
-                                zf.write(tf_cal.name, "calendar.csv")
-                                Path(tf_cal.name).unlink(missing_ok=True)
-
-                        from bookai.quote_renderer import render_quote_card
-                        approved_cards = [
-                            pack.quote_cards[i]
-                            for i in sorted(st.session_state.approved_quotes)
-                            if i < len(pack.quote_cards)
-                        ]
-                        with tempfile.TemporaryDirectory() as tmp:
-                            for j, card in enumerate(approved_cards):
-                                out = Path(tmp) / f"quote_{j:02d}.png"
-                                render_quote_card(
-                                    quote_text=card.quote_text,
-                                    book_title=card.book_title,
-                                    author=card.author,
-                                    output_path=out,
-                                    theme=image_theme,
-                                )
-                                zf.write(str(out), f"quote_cards/quote_{j:02d}.png")
-
-                        for i in sorted(st.session_state.approved_scripts):
-                            if i < len(pack.radio_scripts):
-                                s = pack.radio_scripts[i]
-                                txt = f"# {s.title}\n\n## HOOK\n{s.hook}\n\n## BODY\n{s.body}\n\n## CTA\n{s.cta}\n"
-                                zf.writestr(f"scripts/script_{i+1:02d}.txt", txt)
-
-                    buf.seek(0)
-                    book_slug = (
-                        (pack.book_title or "bookai")
-                        .lower().replace(" ", "_")[:20]
-                    )
-                    st.download_button(
-                        "⬇️ Download ZIP",
-                        data=buf.getvalue(),
-                        file_name=f"{book_slug}_content_pack.zip",
-                        mime="application/zip",
-                    )
-                    st.success("✅ ZIP sẵn sàng!")
-                except Exception as e:
-                    st.error(f"❌ {e}")
-    else:
-        st.caption("Chưa có content — generate ở tab Content Studio trước.")
-
-    st.divider()
-    with st.expander("🚀 Deploy lên HuggingFace Spaces (miễn phí)"):
-        st.markdown("""
-        **Bước 1:** Tạo Space tại https://huggingface.co/new-space
-        - SDK: **Streamlit**
-        - Visibility: Private hoặc Public
-
-        **Bước 2:** Upload các files:
-        ```
-        app.py  (← file này, rename từ src/bookai/app.py)
-        requirements.txt
-        ```
-
-        **Bước 3:** requirements.txt nội dung:
-        ```
-        bookai @ git+https://github.com/bilonglo9x-code/bookai.git@initial-setup
-        streamlit
-        edge-tts
-        moviepy>=2.0
-        ```
-
-        **Bước 4:** Thêm API key vào Secrets của Space (Settings → Secrets):
-        ```
-        key_api = your_api_key_here
-        ```
-        """)
-
-
-# ===========================================================================
-# TAB 9 — Settings (NEW — Phase 3)
-# ===========================================================================
-
-with tab_settings:
-    st.header("⚙️ " + t("Settings"))
-
-    st.subheader("📋 Config hiện tại")
-    st.caption("File: `config.toml` — cấu hình TOML với các sections")
-
-    cfg = get_config()
-
-    # Display current config sections
-    config_tabs = st.tabs(["[app]", "[llm]", "[tts]", "[video]", "[social]", "[affiliate]"])
-
-    with config_tabs[0]:
-        st.subheader("🏠 App Settings")
-        app_cfg = get_section("app")
-        for k, v in app_cfg.items():
-            st.text(f"{k} = {v}")
-
-    with config_tabs[1]:
-        st.subheader("🤖 LLM Settings")
-        llm_cfg = get_section("llm")
-
-        from bookai.llm_providers import list_providers
-        all_providers = list_providers()
-
-        new_llm_provider = st.selectbox(
-            "LLM Provider",
-            all_providers,
-            index=all_providers.index(llm_cfg.get("provider", "openai")) if llm_cfg.get("provider", "openai") in all_providers else 0,
-            key="settings_llm_provider",
-        )
-        new_llm_key = st.text_input(
-            "API Key",
-            value=llm_cfg.get("api_key", ""),
-            type="password",
-            key="settings_llm_key",
-        )
-        new_llm_model = st.text_input(
-            "Model",
-            value=llm_cfg.get("model_name", "gpt-4o-mini"),
-            key="settings_llm_model",
-        )
-        new_llm_temp = st.slider(
-            "Temperature",
-            0.0, 2.0,
-            float(llm_cfg.get("temperature", 0.7)),
-            key="settings_llm_temp",
-        )
-
-        if st.button("💾 " + t("Save Settings"), key="save_llm"):
-            set_value("llm", "provider", new_llm_provider)
-            set_value("llm", "api_key", new_llm_key)
-            set_value("llm", "model_name", new_llm_model)
-            set_value("llm", "temperature", new_llm_temp)
-            st.success("✅ " + t("Settings Saved"))
-
-    with config_tabs[2]:
-        st.subheader("🔊 TTS Settings")
-        tts_cfg = get_section("tts")
-        for k, v in tts_cfg.items():
-            if k != "api_key":
-                st.text(f"{k} = {v}")
-
-    with config_tabs[3]:
-        st.subheader("🎥 Video Settings")
-        video_cfg = get_section("video")
-        for k, v in video_cfg.items():
-            if "key" not in k.lower():
-                st.text(f"{k} = {v}")
-
-    with config_tabs[4]:
-        st.subheader("📤 Social Settings")
-        social_cfg = get_section("social")
-        for k, v in social_cfg.items():
-            if "key" not in k.lower():
-                st.text(f"{k} = {v}")
-
-    with config_tabs[5]:
-        st.subheader("💰 Affiliate Settings")
-        aff_cfg = get_section("affiliate")
-        for k, v in aff_cfg.items():
-            st.text(f"{k} = {v}")
-
-    # System info
-    st.divider()
-    st.subheader("📊 System Info")
-    sys_col1, sys_col2, sys_col3 = st.columns(3)
-    with sys_col1:
-        st.metric("Python", f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
-        try:
-            import moviepy
-            st.metric("MoviePy", moviepy.__version__)
-        except ImportError:
-            st.metric("MoviePy", "❌ Not installed")
-    with sys_col2:
-        try:
-            import edge_tts
-            st.metric("Edge-TTS", "✅ Available")
-        except ImportError:
-            st.metric("Edge-TTS", "❌ Not installed")
-        try:
-            import fastapi
-            st.metric("FastAPI", fastapi.__version__)
-        except ImportError:
-            st.metric("FastAPI", "❌ Not installed")
-    with sys_col3:
-        import bookai
-        st.metric("BookAI", bookai.__version__)
-
-        # i18n info
-        langs = available_languages()
-        st.metric("Languages", f"{len(langs)} ({', '.join(l['code'] for l in langs)})")
-
-    # Generate config file
-    st.divider()
-    st.subheader("📥 Export / Import Config")
-    col_ex, col_im = st.columns(2)
-    with col_ex:
-        from bookai.config import generate_example_config
-        example_toml = generate_example_config()
-        st.download_button(
-            "⬇️ Download config.example.toml",
-            data=example_toml.encode("utf-8"),
-            file_name="config.example.toml",
-            mime="text/plain",
-        )
-    with col_im:
-        config_upload = st.file_uploader("Upload config.toml", type=["toml"], key="config_upload")
-        if config_upload:
-            try:
-                import toml as _toml
-                uploaded_cfg = _toml.loads(config_upload.getvalue().decode("utf-8"))
-                st.json(uploaded_cfg)
-                st.success("✅ Config parsed successfully")
-            except Exception as e:
-                st.error(f"❌ {e}")

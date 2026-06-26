@@ -18,9 +18,24 @@ dependencies = [
     "pytesseract>=0.3.10",
     "openai-whisper>=20230918",
     "edge-tts>=6.1",
+    # Phase 1 video engine upgrade (inspired by MoneyPrinterTurbo)
+    "moviepy>=2.0",
+    "numpy>=1.24",
+    "requests>=2.31",
 ]
 
 [project.optional-dependencies]
+api = [
+    "fastapi[standard]>=0.110",
+    "uvicorn>=0.29",
+]
+redis = [
+    "redis>=5.0",
+]
+all-tts = [
+    "edge-tts>=6.1",
+    "requests>=2.31",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",

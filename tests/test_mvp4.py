@@ -357,10 +357,15 @@ class TestVideoRender:
         assert cfg.fps == 30
         assert cfg.resolution == "1080x1920"
 
-    def test_video_config_custom_resolution(self):
-        cfg = VideoConfig(resolution="720x1280")
-        assert cfg.width == 720
-        assert cfg.height == 1280
+    def test_video_config_aspect_resolution(self):
+        # v2: VideoConfig uses aspect ratio, not custom resolution
+        cfg = VideoConfig(aspect="9:16")
+        assert cfg.width == 1080
+        assert cfg.height == 1920
+
+        cfg2 = VideoConfig(aspect="16:9")
+        assert cfg2.width == 1920
+        assert cfg2.height == 1080
 
     def test_escape_ffmpeg_text_special_chars(self):
         text = "Bạn có biết: '10 bí mật' 50% người không biết"

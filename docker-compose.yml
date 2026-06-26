@@ -1,0 +1,47 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bookai-api
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./config.toml:/app/config.toml
+      - ./output:/app/output
+      - ./resource:/app/resource
+    environment:
+      - BOOKAI_CONFIG=/app/config.toml
+      - BOOKAI_REDIS_ENABLED=true
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  webui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bookai-webui
+    ports:
+      - "127.0.0.1:8501:8501"
+    command: ["streamlit", "run", "webui/Main.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    volumes:
+      - ./config.toml:/app/config.toml
+      - ./output:/app/output
+      - ./resource:/app/resource
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: bookai-redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:
