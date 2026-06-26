@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from .models import AnalyzedChunk, BookMetadata, ChunkLabel
+from .models import AnalyzedChunk, BookMetadata, Chunk, ChunkLabel
 from .settings import get_api_key as _cfg_api_key, get_base_url as _cfg_base_url, get_model as _cfg_model, get_system_prompt as _cfg_prompt
 
 
@@ -567,11 +567,35 @@ class ContentPack:
         }
 
 
+def _ensure_analyzed(items: list) -> list[AnalyzedChunk]:
+    """Convert raw Chunks to AnalyzedChunks with default scores if needed."""
+    result = []
+    for item in items:
+        if isinstance(item, AnalyzedChunk):
+            result.append(item)
+        elif isinstance(item, Chunk):
+            result.append(AnalyzedChunk(
+                chunk=item,
+                labels=[ChunkLabel.INSIGHT],
+                viral_score=0.5,
+                summary=item.text[:200] if item.text else "",
+                reason="auto-generated (no AI analysis)",
+            ))
+        else:
+            result.append(item)
+    return result
+
+
 def generate_all(
-    analyzed: list[AnalyzedChunk],
+    analyzed: list[AnalyzedChunk] | list[Chunk],
     metadata: BookMetadata,
 ) -> ContentPack:
-    """Generate all content types from analyzed chunks."""
+    """Generate all content types from analyzed chunks.
+
+    Accepts both AnalyzedChunk and raw Chunk lists. Raw Chunks are
+    auto-wrapped with default scores so the pipeline works without an API key.
+    """
+    analyzed = _ensure_analyzed(analyzed)
     return ContentPack(
         book_title=metadata.title,
         author=metadata.author,
@@ -1325,7 +1349,7 @@ def generate_quote_images(
 
 
 def generate_all_with_ai(
-    analyzed: list[AnalyzedChunk],
+    analyzed: list[AnalyzedChunk] | list[Chunk],
     metadata: BookMetadata,
     api_key: str | None = None,
     model: str = "gpt-4o-mini",
@@ -1341,6 +1365,7 @@ def generate_all_with_ai(
     captions for more natural, engaging output.
     Also generates quote card images if output_dir is provided.
     """
+    analyzed = _ensure_analyzed(analyzed)
     radio = ai_rewrite_radio_scripts(
         analyzed, metadata,
         api_key=api_key, model=model, base_url=base_url,
