@@ -27,9 +27,8 @@ from __future__ import annotations
 import logging
 import os
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -393,7 +392,7 @@ class MaterialManager:
     ) -> list[str]:
         """Download stock materials using keyword search."""
         try:
-            from bookai.stock_video import search_and_download, StockVideoConfig
+            from bookai.stock_video import StockVideoConfig, search_and_download
         except ImportError:
             logger.error("stock_video module not available")
             return []

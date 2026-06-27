@@ -7,7 +7,7 @@ rounded box, keyword highlighting, neon glow, karaoke, and more.
 
 Usage:
     from bookai.subtitle_templates import burn_styled_subtitles, TEMPLATES
-    
+
     success = burn_styled_subtitles(
         video_path="input.mp4",
         srt_path="subtitle.srt",
@@ -24,10 +24,8 @@ import os
 import re
 import shutil
 import subprocess
-import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -379,7 +377,7 @@ _FONT_DIRS = [
 ]
 
 
-def _find_font(name: str, size: int) -> "ImageFont.FreeTypeFont":
+def _find_font(name: str, size: int) -> ImageFont.FreeTypeFont:
     """Find and load a font by name."""
     if ImageFont is None:
         raise ImportError("Pillow required: pip install Pillow")
@@ -429,7 +427,7 @@ def _hex_to_rgba(hex_color: str, opacity: float = 1.0) -> tuple[int, int, int, i
 
 
 def _draw_rounded_rect(
-    draw: "ImageDraw.ImageDraw",
+    draw: ImageDraw.ImageDraw,
     xy: tuple[int, int, int, int],
     radius: int,
     fill: tuple[int, int, int, int],
@@ -494,7 +492,7 @@ def render_subtitle_card(
     template: SubtitleTemplate,
     video_width: int,
     video_height: int,
-    keywords: Optional[list[str]] = None,
+    keywords: list[str] | None = None,
 ) -> Image.Image:
     """Render a single subtitle as a transparent PNG overlay (full video size)."""
     if Image is None:
@@ -586,7 +584,7 @@ def render_subtitle_card(
 
 
 def _wrap_text(
-    text: str, font: "ImageFont.FreeTypeFont", max_width: int, draw: "ImageDraw.ImageDraw"
+    text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: ImageDraw.ImageDraw
 ) -> list[str]:
     """Wrap text to fit within max_width pixels."""
     words = text.split()
@@ -610,11 +608,11 @@ def _wrap_text(
 
 
 def _draw_text_styled(
-    draw: "ImageDraw.ImageDraw",
+    draw: ImageDraw.ImageDraw,
     text: str,
     x: int,
     y: int,
-    font: "ImageFont.FreeTypeFont",
+    font: ImageFont.FreeTypeFont,
     t: SubtitleTemplate,
 ) -> None:
     """Draw text with outline and/or shadow."""
@@ -639,11 +637,11 @@ def _draw_text_styled(
 
 
 def _draw_line_with_highlights(
-    draw: "ImageDraw.ImageDraw",
+    draw: ImageDraw.ImageDraw,
     line: str,
     x: int,
     y: int,
-    font: "ImageFont.FreeTypeFont",
+    font: ImageFont.FreeTypeFont,
     t: SubtitleTemplate,
     keywords: list[str],
 ) -> None:
@@ -723,7 +721,7 @@ def render_karaoke_frames(
     fps: int = 30,
 ) -> list[tuple[float, float, Image.Image]]:
     """Render karaoke-style frames where current word is highlighted.
-    
+
     Returns: list of (start_sec, end_sec, overlay_image)
     """
     if Image is None:
@@ -795,8 +793,8 @@ def burn_styled_subtitles(
     template: str | SubtitleTemplate = "capcut_white_box",
     video_width: int = 1080,
     video_height: int = 1920,
-    keywords: Optional[list[str]] = None,
-    word_timestamps: Optional[list[dict]] = None,
+    keywords: list[str] | None = None,
+    word_timestamps: list[dict] | None = None,
 ) -> bool:
     """Burn CapCut-style subtitles onto video using PIL overlays.
 

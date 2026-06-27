@@ -24,7 +24,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .models import AnalyzedChunk, BookMetadata, BookResult, ChunkLabel
-from .settings import get_api_key as _cfg_api_key, get_base_url as _cfg_base_url, get_model as _cfg_model, get_system_prompt as _cfg_prompt
+from .settings import get_api_key as _cfg_api_key
+from .settings import get_base_url as _cfg_base_url
+from .settings import get_model as _cfg_model
+from .settings import get_system_prompt as _cfg_prompt
 
 # ---------------------------------------------------------------------------
 # Models

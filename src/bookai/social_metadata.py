@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +62,7 @@ class SocialMetadata:
     ok: bool = True
     error: str = ""
 
-    def get(self, platform: str) -> Optional[PlatformMetadata]:
+    def get(self, platform: str) -> PlatformMetadata | None:
         return self.platforms.get(platform)
 
     def to_dict(self) -> dict:
@@ -169,7 +168,7 @@ def generate_metadata_simple(req: MetadataRequest) -> SocialMetadata:
 
 def generate_metadata(
     req: MetadataRequest,
-    llm_config: Optional[object] = None,
+    llm_config: object | None = None,
 ) -> SocialMetadata:
     """Generate social metadata, using LLM if available, else templates.
 
@@ -182,7 +181,7 @@ def generate_metadata(
     """
     if llm_config is not None:
         try:
-            from bookai.llm_providers import LLMConfig, generate_json
+            from bookai.llm_providers import generate_json
 
             prompt = (
                 f"Generate social media metadata for a book video.\n"

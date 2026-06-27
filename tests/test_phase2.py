@@ -9,13 +9,12 @@ Tests the new modules:
 """
 
 import os
-import time
 import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ===========================================================================
 # tts_providers tests
@@ -306,7 +305,7 @@ class TestState:
         assert ms.count_by_state(TaskState.FAILED) == 0
 
     def test_create_task_helper(self):
-        from bookai.state import MemoryState, TaskState
+        from bookai.state import MemoryState
 
         ms = MemoryState()
         info = ms.create_task("t1", task_type="video", params={"text": "hello"})
@@ -435,7 +434,6 @@ class TestTaskManager:
 
     def test_task_manager_delete(self):
         from bookai.task_manager import TaskManager, TaskParams
-        from bookai.state import MemoryState
 
         manager = TaskManager(max_concurrent=1)
         task_id = manager.submit(TaskParams(text="Delete me"), task_id="to_delete")

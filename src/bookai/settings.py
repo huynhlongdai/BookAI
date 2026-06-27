@@ -209,12 +209,12 @@ def cmd_show(cfg: dict) -> None:
     api = cfg.get("api", {})
     key = api.get("key", "")
     masked = (key[:8] + "..." + key[-4:]) if len(key) > 12 else ("(chưa cài)" if not key else key)
-    print(f"\n  [API]")
+    print("\n  [API]")
     print(f"    key      : {masked}")
     print(f"    base_url : {api.get('base_url', '(mặc định OpenAI)')}")
     print(f"    model    : {api.get('model', 'gpt-4o-mini')}")
     out = cfg.get("output", {})
-    print(f"\n  [Output]")
+    print("\n  [Output]")
     print(f"    dir      : {out.get('dir', './output')}")
     print(f"    formats  : {', '.join(out.get('formats', ['md']))}")
     print(f"\n  [Prompts] — {len(cfg.get('prompts', {}))} prompts đã cài")
@@ -238,8 +238,8 @@ def cmd_prompt_list(cfg: dict) -> None:
         print(f"  {k:12s}  {name}")
         if desc:
             print(f"              {desc}")
-    print(f"\n  👉 Xem chi tiết: python -m bookai.settings prompt show <key>")
-    print(f"  ✏️  Sửa prompt : python -m bookai.settings prompt edit <key>\n")
+    print("\n  👉 Xem chi tiết: python -m bookai.settings prompt show <key>")
+    print("  ✏️  Sửa prompt : python -m bookai.settings prompt edit <key>\n")
 
 
 def cmd_prompt_show(cfg: dict, key: str) -> None:
@@ -281,7 +281,7 @@ def cmd_prompt_edit(cfg: dict, key: str) -> None:
         print("Rồi chạy lại: python -m bookai.settings prompt set <key> <file>")
         return
 
-    with open(tmp_path, "r", encoding="utf-8") as f:
+    with open(tmp_path, encoding="utf-8") as f:
         new_system = f.read().strip()
 
     Path(tmp_path).unlink(missing_ok=True)

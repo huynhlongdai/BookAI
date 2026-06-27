@@ -23,7 +23,6 @@ New in v0.2.0 (Phase 1-3 upgrade):
 
 from __future__ import annotations
 
-import asyncio
 import io
 import json
 import os
@@ -39,14 +38,14 @@ import streamlit as st
 
 from bookai.analyzer import analyze_chunks
 from bookai.chunker import chunk_markdown
+from bookai.config import get_config, get_section, load_config, set_value
 from bookai.content_studio import generate_all, generate_all_with_ai
 from bookai.converter import convert_file
-from bookai.library import BookLibrary, PromptManager
-from bookai.models import BookResult, ChunkLabel
 
 # Phase 1-3 imports (safe — all tested)
 from bookai.i18n import available_languages, set_language, t
-from bookai.config import get_config, get_section, load_config, set_value
+from bookai.library import BookLibrary, PromptManager
+from bookai.models import BookResult, ChunkLabel
 
 # ---------------------------------------------------------------------------
 # Load config & i18n
@@ -815,7 +814,7 @@ with tab_video:
     st.header("🎥 " + t("Video Render"))
     st.caption("Tạo video chuyên nghiệp từ kịch bản sách — Tự thu thập stock video/ảnh, phụ đề, BGM")
 
-    from bookai.models import VideoAspect, TransitionMode, BgmMode, SubtitlePosition
+    from bookai.models import BgmMode, SubtitlePosition, TransitionMode, VideoAspect
 
     v_col1, v_col2 = st.columns(2)
 
@@ -824,7 +823,11 @@ with tab_video:
         video_script = st.text_area(
             "Kịch bản video",
             height=200,
-            placeholder="Nhập kịch bản video...\n\nVí dụ:\nBạn có biết cuốn sách Atomic Habits đã thay đổi cuộc sống của hàng triệu người?\n\nThói quen nhỏ tạo nên kết quả lớn. James Clear chỉ ra rằng chỉ cần cải thiện 1% mỗi ngày...",
+            placeholder=(
+                "Nhập kịch bản video...\n\nVí dụ:\n"
+                "Bạn có biết cuốn sách Atomic Habits đã thay đổi cuộc sống của hàng triệu người?\n\n"
+                "Thói quen nhỏ tạo nên kết quả lớn. James Clear chỉ ra rằng chỉ cần cải thiện 1% mỗi ngày..."
+            ),
             key="video_script",
         )
 
@@ -988,7 +991,11 @@ with tab_video:
     if video_script and keyword_mode != "manual":
         if st.button("👁️ Xem trước Keywords", key="preview_kw"):
             try:
-                from bookai.keyword_generator import generate_keywords, generate_keywords_regex, KeywordConfig
+                from bookai.keyword_generator import (
+                    KeywordConfig,
+                    generate_keywords,
+                    generate_keywords_regex,
+                )
                 if keyword_mode == "llm" and kw_llm_key:
                     kw_cfg = KeywordConfig(
                         llm_api_key=kw_llm_key,
@@ -1071,7 +1078,7 @@ with tab_video:
         with drive_col_a:
             if st.button("📋 Xem danh sách files", key="drive_list"):
                 try:
-                    from bookai.drive_material import DriveMaterialManager, DriveConfig
+                    from bookai.drive_material import DriveConfig, DriveMaterialManager
                     dcfg = DriveConfig(
                         folder_url=drive_folder_url,
                         api_key=drive_api_key,
@@ -1093,7 +1100,7 @@ with tab_video:
             )
             if st.button("⬇️ Tải về tất cả", key="drive_download"):
                 try:
-                    from bookai.drive_material import DriveMaterialManager, DriveConfig
+                    from bookai.drive_material import DriveConfig, DriveMaterialManager
                     dcfg = DriveConfig(
                         folder_url=drive_folder_url,
                         api_key=drive_api_key,
@@ -1311,7 +1318,7 @@ with tab_video:
         progress_bar = st.progress(0, text="Bắt đầu pipeline...")
 
         try:
-            from bookai.video_pipeline import create_book_video, PipelineConfig
+            from bookai.video_pipeline import PipelineConfig, create_book_video
 
             # Handle uploaded files
             local_mats = None
@@ -2000,7 +2007,8 @@ with tab_settings:
         llm_cfg = get_section("llm")
 
         from bookai.llm_providers import list_providers
-        all_providers = list_providers()
+        all_providers_data = list_providers()
+        all_providers = list(all_providers_data.keys()) if isinstance(all_providers_data, dict) else list(all_providers_data)
 
         new_llm_provider = st.selectbox(
             "LLM Provider",
@@ -2140,7 +2148,7 @@ with tab_settings:
             st.metric("MoviePy", "❌ Not installed")
     with sys_col2:
         try:
-            import edge_tts
+            import edge_tts  # noqa: F401
             st.metric("Edge-TTS", "✅ Available")
         except ImportError:
             st.metric("Edge-TTS", "❌ Not installed")

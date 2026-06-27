@@ -27,12 +27,12 @@ Usage::
 
 from __future__ import annotations
 
-import os
 import logging
+import os
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import requests
 
@@ -159,10 +159,10 @@ class YouTubeExtra:
 def upload_video(
     video_path: str,
     title: str,
-    config: Optional[SocialPostConfig] = None,
-    platforms: Optional[list[str]] = None,
+    config: SocialPostConfig | None = None,
+    platforms: list[str] | None = None,
     privacy_level: str = "PUBLIC_TO_EVERYONE",
-    youtube_extra: Optional[YouTubeExtra] = None,
+    youtube_extra: YouTubeExtra | None = None,
 ) -> PostResult:
     """Upload a video to social platforms via Upload-Post API.
 
@@ -192,7 +192,7 @@ def upload_video(
     if not vpath.exists():
         return PostResult(ok=False, error=f"Video file not found: {video_path}")
 
-    if not vpath.suffix.lower() in (".mp4", ".mov", ".avi", ".webm"):
+    if vpath.suffix.lower() not in (".mp4", ".mov", ".avi", ".webm"):
         return PostResult(ok=False, error=f"Unsupported video format: {vpath.suffix}")
 
     target_platforms = platforms or cfg.platforms
@@ -269,7 +269,7 @@ def upload_video(
 
 def check_upload_status(
     request_id: str,
-    config: Optional[SocialPostConfig] = None,
+    config: SocialPostConfig | None = None,
 ) -> dict:
     """Check the status of an upload request.
 
@@ -304,7 +304,7 @@ def check_upload_status(
 def post_webhook(
     video_path: str,
     metadata: dict,
-    config: Optional[SocialPostConfig] = None,
+    config: SocialPostConfig | None = None,
 ) -> PostResult:
     """Post video info to a custom webhook (Zapier, n8n, Make, etc.).
 
@@ -358,9 +358,9 @@ def post_webhook(
 def cross_post_video(
     video_path: str,
     title: str,
-    config: Optional[SocialPostConfig] = None,
-    platforms: Optional[list[str]] = None,
-    youtube_extra: Optional[YouTubeExtra] = None,
+    config: SocialPostConfig | None = None,
+    platforms: list[str] | None = None,
+    youtube_extra: YouTubeExtra | None = None,
 ) -> PostResult:
     """Convenience function to cross-post a video.
 

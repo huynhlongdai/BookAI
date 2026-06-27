@@ -12,11 +12,11 @@ Usage::
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
-import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +128,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
 # Config loading / saving
 # ---------------------------------------------------------------------------
 
-_config: Optional[dict[str, Any]] = None
-_config_path: Optional[str] = None
+_config: dict[str, Any] | None = None
+_config_path: str | None = None
 
 
 def _find_config_path() -> str:
@@ -166,7 +166,7 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
-def load_config(config_path: Optional[str] = None) -> dict[str, Any]:
+def load_config(config_path: str | None = None) -> dict[str, Any]:
     """Load configuration from TOML file.
 
     Falls back to defaults if file doesn't exist.
@@ -184,7 +184,7 @@ def load_config(config_path: Optional[str] = None) -> dict[str, Any]:
         example = config_file.parent / "config.example.toml"
         if example.exists():
             shutil.copyfile(example, config_file)
-            logger.info(f"Copied config.example.toml → config.toml")
+            logger.info("Copied config.example.toml → config.toml")
         else:
             logger.info("No config.toml found, using defaults")
             _config = {k: {**v} if isinstance(v, dict) else v for k, v in DEFAULT_CONFIG.items()}
@@ -212,7 +212,7 @@ def load_config(config_path: Optional[str] = None) -> dict[str, Any]:
     return _config
 
 
-def save_config(config: Optional[dict] = None, config_path: Optional[str] = None) -> bool:
+def save_config(config: dict | None = None, config_path: str | None = None) -> bool:
     """Save configuration to TOML file."""
     if not _HAS_TOML:
         logger.error("toml package required for saving. Run: pip install toml")

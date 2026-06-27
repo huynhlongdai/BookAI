@@ -25,13 +25,12 @@ import os
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
 try:
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
 except ImportError:
     Image = ImageDraw = ImageFont = ImageFilter = None
 
@@ -99,7 +98,7 @@ def _ease_out_elastic(t: float) -> float:
 # Font helpers
 # ---------------------------------------------------------------------------
 
-def _load_font(config: AnimationConfig, size: int = 0) -> "ImageFont.FreeTypeFont":
+def _load_font(config: AnimationConfig, size: int = 0) -> ImageFont.FreeTypeFont:
     """Load font with fallbacks."""
     size = size or config.font_size
 
@@ -193,7 +192,7 @@ def _entrance_zoom_in(
     progress: float, config: AnimationConfig,
 ) -> tuple[int, int, float]:
     """Text zooms from small to full size."""
-    scale = 0.3 + 0.7 * _ease_out_back(progress)
+    0.3 + 0.7 * _ease_out_back(progress)
     alpha = _ease_in_out(progress)
     return x, y, alpha  # Scale applied separately
 
@@ -265,7 +264,7 @@ def _emphasis_pulse(
     progress: float, config: AnimationConfig,
 ) -> list[tuple[str, tuple, tuple]]:
     """Gentle pulse/scale oscillation."""
-    scale = 1.0 + 0.05 * math.sin(progress * math.pi * 4)
+    1.0 + 0.05 * math.sin(progress * math.pi * 4)
     # Can't easily scale individual words in PIL, so just shift y slightly
     y_shift = int(3 * math.sin(progress * math.pi * 4))
     return [(w, config.text_color, (0, y_shift)) for w in words]
@@ -413,7 +412,7 @@ def render_animated_text(
 
     W, H = config.width, config.height
     font = _load_font(config)
-    words = text.split()
+    text.split()
 
     # Phase boundaries (in frames)
     entrance_frames = int(config.entrance_duration * config.fps)

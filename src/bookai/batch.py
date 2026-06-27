@@ -25,7 +25,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("bookai.batch")
 
@@ -142,11 +142,11 @@ def batch_generate(
     start_time = time.time()
     result = BatchResult(batch_id=batch_id, total=cfg.video_count)
 
-    from bookai.video_render import VideoConfig, render_radio_video
+    from bookai.video_render import render_radio_video
 
     for i in range(cfg.video_count):
         variant_name = f"{cfg.filename_prefix}_{i + 1:03d}"
-        variant_dir = batch_dir / variant_name
+        batch_dir / variant_name
 
         if on_progress:
             try:
@@ -239,7 +239,7 @@ def batch_generate_async(
 
     Returns the task_id for tracking.
     """
-    from bookai.task_manager import TaskManager, TaskParams, get_task_manager
+    from bookai.task_manager import TaskParams, get_task_manager
 
     cfg = config or BatchConfig()
     manager = get_task_manager()

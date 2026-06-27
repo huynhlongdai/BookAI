@@ -24,8 +24,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any, Optional
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Task states
@@ -125,7 +124,7 @@ class BaseState(ABC):
         ...
 
     @abstractmethod
-    def get_task(self, task_id: str) -> Optional[TaskInfo]:
+    def get_task(self, task_id: str) -> TaskInfo | None:
         ...
 
     @abstractmethod
@@ -217,7 +216,7 @@ class MemoryState(BaseState):
             })
             self._tasks[task_id] = existing
 
-    def get_task(self, task_id: str) -> Optional[TaskInfo]:
+    def get_task(self, task_id: str) -> TaskInfo | None:
         with self._lock:
             data = self._tasks.get(task_id)
             if data is None:
@@ -299,7 +298,7 @@ class RedisState(BaseState):
 
         self._redis.hset(self._key(task_id), mapping=data)
 
-    def get_task(self, task_id: str) -> Optional[TaskInfo]:
+    def get_task(self, task_id: str) -> TaskInfo | None:
         data = self._redis.hgetall(self._key(task_id))
         if not data:
             return None

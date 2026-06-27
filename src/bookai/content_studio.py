@@ -9,7 +9,9 @@ from enum import Enum
 from pathlib import Path
 
 from .models import AnalyzedChunk, BookMetadata, Chunk, ChunkLabel
-from .settings import get_api_key as _cfg_api_key, get_base_url as _cfg_base_url, get_model as _cfg_model, get_system_prompt as _cfg_prompt
+from .settings import get_api_key as _cfg_api_key
+from .settings import get_base_url as _cfg_base_url
+from .settings import get_system_prompt as _cfg_prompt
 
 
 class ContentType(str, Enum):
@@ -1475,7 +1477,6 @@ def split_script_to_series(
     Returns:
         List of SeriesVideo, one per part.
     """
-    import random
 
     series_title = script.title or f"Series từ {book_title}"
     body_sentences = _split_complete_sentences(script.body)
@@ -1526,7 +1527,7 @@ def split_script_to_series(
             hook=hook,
             body=body,
             cliffhanger=cliffhanger,
-            hashtags=list(script.hashtags) + [f"phan{part_num}", f"series"],
+            hashtags=list(script.hashtags) + [f"phan{part_num}", "series"],
             source_script_title=script.title,
             estimated_seconds=estimated,
         ))
@@ -1535,7 +1536,7 @@ def split_script_to_series(
 
 
 def split_pack_to_series(
-    pack: "ContentPack",
+    pack: ContentPack,
     parts: int = 5,
     target_seconds: int = 75,
 ) -> list[SeriesVideo]:

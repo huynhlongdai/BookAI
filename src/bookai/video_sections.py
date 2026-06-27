@@ -20,17 +20,16 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import subprocess
 import tempfile
-import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 try:
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
 except ImportError:
     Image = ImageDraw = ImageFont = ImageFilter = None
     logger.warning("Pillow not installed — video_sections will not work")
@@ -68,7 +67,7 @@ class SectionConfig:
 # Font utilities
 # ---------------------------------------------------------------------------
 
-def _load_font(config: SectionConfig, size: int) -> "ImageFont.FreeTypeFont":
+def _load_font(config: SectionConfig, size: int) -> ImageFont.FreeTypeFont:
     """Load a font, trying user path first, then system fallbacks."""
     if config.font_path and os.path.exists(config.font_path):
         try:
@@ -218,7 +217,7 @@ def _hook_bold_question(
     """Bold text zoom-in hook."""
     W, H = config.width, config.height
     num_frames = int(config.duration * config.fps)
-    font = _load_font(config, config.font_size_title)
+    _load_font(config, config.font_size_title)
 
     tmpdir = tempfile.mkdtemp(prefix="hook_bold_")
     try:
@@ -286,7 +285,7 @@ def _hook_shocking_fact(
     """Shocking fact with emphasis pulse effect."""
     W, H = config.width, config.height
     num_frames = int(config.duration * config.fps)
-    font = _load_font(config, config.font_size_title)
+    _load_font(config, config.font_size_title)
 
     tmpdir = tempfile.mkdtemp(prefix="hook_shock_")
     try:

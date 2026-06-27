@@ -27,10 +27,9 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import random
-from dataclasses import dataclass, field
-from typing import Optional
+import re
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -205,8 +204,8 @@ def _call_llm(prompt: str, config: KeywordConfig) -> str:
 
     Uses urllib (stdlib) for maximum compatibility — no openai package required.
     """
-    import urllib.request
     import ssl
+    import urllib.request
 
     url = config.llm_base_url.rstrip("/") + "/chat/completions"
     payload = json.dumps({

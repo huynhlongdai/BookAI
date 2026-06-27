@@ -29,14 +29,13 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 import uuid
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from queue import Queue
-from typing import Any, Callable, Optional
+from typing import Any
 
 from bookai.state import TaskInfo, TaskState, get_state
 
@@ -232,7 +231,7 @@ class TaskManager:
     # Status / query
     # -----------------------------------------------------------------------
 
-    def get_status(self, task_id: str) -> Optional[TaskInfo]:
+    def get_status(self, task_id: str) -> TaskInfo | None:
         """Get current status of a task."""
         return self._state.get_task(task_id)
 

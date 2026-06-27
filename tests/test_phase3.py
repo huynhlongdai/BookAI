@@ -5,11 +5,9 @@ Tests: social_post, llm_providers, social_metadata, config, file_security, i18n
 
 import os
 import tempfile
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 
 # ===========================================================================
 # social_post tests
@@ -269,13 +267,13 @@ class TestConfig:
         assert cfg["app"]["project_name"] == "BookAI"
 
     def test_get_section(self):
-        from bookai.config import load_config, get_section
+        from bookai.config import get_section, load_config
         load_config("/tmp/nonexistent_bookai_config_12345.toml")
         llm = get_section("llm")
         assert "provider" in llm
 
     def test_set_value(self):
-        from bookai.config import load_config, set_value, get_config
+        from bookai.config import get_config, load_config, set_value
         load_config("/tmp/nonexistent_bookai_config_12345.toml")
         set_value("app", "custom_field", "test_value")
         cfg = get_config()
@@ -360,7 +358,7 @@ class TestFileSecurity:
 class TestI18n:
 
     def test_set_and_get_language(self):
-        from bookai.i18n import set_language, get_language
+        from bookai.i18n import get_language, set_language
         set_language("en")
         assert get_language() == "en"
         set_language("vi")

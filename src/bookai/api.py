@@ -28,15 +28,17 @@ Endpoints:
 from __future__ import annotations
 
 import mimetypes
-import os
-import shutil
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 try:
     from fastapi import (
-        FastAPI, File, HTTPException, Path as PathParam,
-        Query, Request, UploadFile,
+        FastAPI,
+        File,
+        HTTPException,
+        Query,
+        Request,
+        UploadFile,
     )
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse, StreamingResponse
@@ -544,7 +546,7 @@ if FASTAPI_AVAILABLE:
     async def list_text_animations():
         """List available text animation effects."""
         try:
-            from bookai.text_animations import TextAnimator
+            from bookai.text_animations import TextAnimator  # noqa: F401
             return {
                 "entrance": ["fade_in", "slide_up", "slide_left", "zoom_in", "pop_bounce", "typewriter", "blur_reveal"],
                 "emphasis": ["word_highlight", "pulse", "color_change", "underline_sweep"],
@@ -565,7 +567,7 @@ if FASTAPI_AVAILABLE:
     ):
         """List media files in a Google Drive shared folder."""
         try:
-            from bookai.drive_material import DriveMaterialManager, DriveConfig
+            from bookai.drive_material import DriveConfig, DriveMaterialManager
             config = DriveConfig(
                 folder_url=folder_url,
                 folder_id=folder_id,
@@ -601,7 +603,7 @@ if FASTAPI_AVAILABLE:
     ):
         """Download all media from a Drive folder to local storage."""
         try:
-            from bookai.drive_material import DriveMaterialManager, DriveConfig
+            from bookai.drive_material import DriveConfig, DriveMaterialManager
             config = DriveConfig(
                 folder_url=folder_url,
                 folder_id=folder_id,
@@ -631,10 +633,12 @@ if FASTAPI_AVAILABLE:
     ):
         """Generate search keywords from script text."""
         try:
-            from bookai.keyword_generator import (
-                generate_keywords, generate_keywords_regex, KeywordConfig,
-            )
             from bookai.config import get_config
+            from bookai.keyword_generator import (
+                KeywordConfig,
+                generate_keywords,
+                generate_keywords_regex,
+            )
 
             if mode == "llm":
                 cfg = get_config()

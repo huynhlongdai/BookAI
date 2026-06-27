@@ -26,13 +26,10 @@ import json
 import mimetypes
 import os
 import re
-import urllib.request
 import urllib.error
 import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional
-
 
 # ---------------------------------------------------------------------------
 # Config
@@ -424,7 +421,7 @@ def download_drive_file(url: str, output_dir: str = "materials/drive") -> str:
         raise ValueError(f"Cannot extract file ID from URL: {url}")
 
     os.makedirs(output_dir, exist_ok=True)
-    local_path = os.path.join(output_dir, f"drive_{file_id}")
+    os.path.join(output_dir, f"drive_{file_id}")
 
     mgr = DriveMaterialManager(DriveConfig())
     df = DriveFile(id=file_id, name=f"drive_{file_id}", mime_type="application/octet-stream")

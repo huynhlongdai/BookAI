@@ -22,18 +22,13 @@ Usage::
 from __future__ import annotations
 
 import asyncio
-import io
-import math
 import os
 import re
-import struct
 import subprocess
 import wave
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
-
 
 # ---------------------------------------------------------------------------
 # Provider enum

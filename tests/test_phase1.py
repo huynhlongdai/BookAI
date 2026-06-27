@@ -8,13 +8,10 @@ Tests the new modules inspired by MoneyPrinterTurbo:
 - upgraded video_render
 """
 
-import os
-import textwrap
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
 
 # ===========================================================================
 # video_effects tests

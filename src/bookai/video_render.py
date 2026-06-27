@@ -26,13 +26,11 @@ Usage::
 from __future__ import annotations
 
 import gc
-import os
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
 
 # ---------------------------------------------------------------------------
 # Try MoviePy, fallback to FFmpeg-only mode
@@ -620,7 +618,7 @@ def _render_moviepy(
             engine="moviepy",
         )
 
-    except Exception as e:
+    except Exception:
         # Fallback to FFmpeg if MoviePy fails
         return _render_ffmpeg_legacy(
             script=script,
@@ -647,8 +645,8 @@ def _make_background_clip(
 
             if cfg.cover_blur:
                 # Apply blur via PIL
-                from PIL import Image, ImageFilter
                 import numpy as np
+                from PIL import Image, ImageFilter
 
                 frame = img_clip.get_frame(0)
                 pil_img = Image.fromarray(frame)

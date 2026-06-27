@@ -28,10 +28,9 @@ import tempfile
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 try:
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
 except ImportError:
     Image = ImageDraw = ImageFont = ImageFilter = None  # type: ignore
 
@@ -116,13 +115,17 @@ class DynamicEffectEngine:
     fps: int = 30
     font_dir: str = ""
 
-    def _get_font(self, size: int, bold: bool = True) -> "ImageFont.FreeTypeFont":
+    def _get_font(self, size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
         """Get a font, trying custom fonts first, then system defaults."""
         if not ImageFont:
             raise ImportError("Pillow is required: pip install Pillow")
 
         # Try custom fonts
-        font_names = ["BeVietnamPro-Bold.ttf", "BeVietnamPro-SemiBold.ttf"] if bold else ["BeVietnamPro-Medium.ttf", "BeVietnamPro-Regular.ttf"]
+        font_names = (
+            ["BeVietnamPro-Bold.ttf", "BeVietnamPro-SemiBold.ttf"]
+            if bold
+            else ["BeVietnamPro-Medium.ttf", "BeVietnamPro-Regular.ttf"]
+        )
         search_dirs = [self.font_dir, "assets/fonts", os.path.join(os.path.dirname(__file__), "..", "..", "assets", "fonts")]
 
         for d in search_dirs:
@@ -284,7 +287,7 @@ class DynamicEffectEngine:
 
     def _render_lower_third(
         self, cfg: TextOverlayConfig, t: float, frame_idx: int, total: int
-    ) -> "Image.Image":
+    ) -> Image.Image:
         """Lower-third name bar with entrance/exit animation."""
         frame = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(frame)
@@ -335,7 +338,7 @@ class DynamicEffectEngine:
 
     def _render_full_screen_quote(
         self, cfg: TextOverlayConfig, t: float, frame_idx: int, total: int
-    ) -> "Image.Image":
+    ) -> Image.Image:
         """Large centered quote with fade + scale animation."""
         frame = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
 
@@ -380,7 +383,7 @@ class DynamicEffectEngine:
 
     def _render_bullet_list(
         self, cfg: TextOverlayConfig, t: float, frame_idx: int, total: int
-    ) -> "Image.Image":
+    ) -> Image.Image:
         """Animated bullet list — items appear one by one."""
         frame = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(frame)
@@ -431,7 +434,7 @@ class DynamicEffectEngine:
 
     def _render_chapter_marker(
         self, cfg: TextOverlayConfig, t: float, frame_idx: int, total: int
-    ) -> "Image.Image":
+    ) -> Image.Image:
         """Chapter marker overlay — "Chapter 1: Title" with accent bar."""
         frame = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(frame)
@@ -475,7 +478,7 @@ class DynamicEffectEngine:
 
     def _render_highlight_box(
         self, cfg: TextOverlayConfig, t: float, frame_idx: int, total: int
-    ) -> "Image.Image":
+    ) -> Image.Image:
         """Key insight in a rounded highlight box."""
         frame = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(frame)
@@ -532,7 +535,7 @@ class DynamicEffectEngine:
 
     def _render_stats_counter(
         self, cfg: TextOverlayConfig, t: float, frame_idx: int, total: int
-    ) -> "Image.Image":
+    ) -> Image.Image:
         """Animated counter (e.g., '4.8/5 ⭐' counting up)."""
         frame = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(frame)
@@ -622,7 +625,7 @@ class DynamicEffectEngine:
             t -= 2.625 / 2.75
             return 7.5625 * t * t + 0.984375
 
-    def _wrap_text(self, text: str, font: "ImageFont.FreeTypeFont", max_width: int) -> list[str]:
+    def _wrap_text(self, text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[str]:
         """Word-wrap text to fit within max_width."""
         if not ImageDraw:
             return [text]

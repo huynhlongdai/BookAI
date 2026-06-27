@@ -29,7 +29,6 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -83,7 +82,7 @@ class LibraryEntry:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "LibraryEntry":
+    def from_dict(cls, d: dict) -> LibraryEntry:
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 

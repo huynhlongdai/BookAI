@@ -21,19 +21,14 @@ Usage::
 
 from __future__ import annotations
 
-import os
-import random
-import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
 from urllib.parse import urlencode
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-
 
 # ---------------------------------------------------------------------------
 # Config
@@ -260,11 +255,10 @@ def search_coverr(
     session = _get_session(cfg.proxy)
 
     # Map aspect to Coverr's is_vertical filter
-    orientation_filter = ""
     if video_aspect == "9:16":
-        orientation_filter = " AND is_vertical:true"
+        pass
     elif video_aspect == "16:9":
-        orientation_filter = " AND is_vertical:false"
+        pass
 
     try:
         resp = session.get(

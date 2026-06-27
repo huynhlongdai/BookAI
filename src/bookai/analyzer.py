@@ -7,7 +7,10 @@ import os
 import time
 
 from .models import AnalyzedChunk, Chunk, ChunkLabel
-from .settings import get_api_key as _settings_api_key, get_base_url as _settings_base_url, get_model as _settings_model, get_system_prompt
+from .settings import get_api_key as _settings_api_key
+from .settings import get_base_url as _settings_base_url
+from .settings import get_model as _settings_model
+from .settings import get_system_prompt
 
 ANALYSIS_PROMPT = """Bạn là chuyên gia phân tích nội dung sách cho affiliate marketing Việt Nam.
 Nhiệm vụ: phân tích đoạn text sau và đánh giá tiềm năng viral trên TikTok/mạng xã hội.

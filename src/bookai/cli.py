@@ -792,7 +792,7 @@ def tts_command(
         bookai tts content.json -o ./audio
         bookai tts content.json --voice vi-VN-NamMinhNeural --rate +10%
     """
-    from .tts import synthesize_script, list_voices
+    from .tts import synthesize_script
 
     path = Path(input_json)
     if not path.exists():
@@ -859,7 +859,7 @@ def render_video_command(
         bookai render-video content.json ./audio -o ./videos --cover cover.jpg
         bookai render-video content.json ./audio --max 3
     """
-    from .video_render import render_radio_video, VideoConfig, check_ffmpeg
+    from .video_render import VideoConfig, check_ffmpeg, render_radio_video
 
     if not check_ffmpeg():
         console.print("[red]FFmpeg not found. Install: sudo apt install ffmpeg[/red]")
@@ -944,9 +944,8 @@ def calendar_command(
         bookai calendar content.json --sub-id eckhart_aug --json
     """
     from datetime import date as date_type
-    from .calendar import (
-        generate_calendar, save_calendar_csv, save_calendar_json, calendar_summary
-    )
+
+    from .calendar import calendar_summary, generate_calendar, save_calendar_csv, save_calendar_json
 
     path = Path(input_json)
     if not path.exists():
@@ -958,7 +957,6 @@ def calendar_command(
     # Re-build a minimal pack-like object from the JSON
     class _Pack:
         def __init__(self, d: dict) -> None:
-            from .content_studio import RadioScript, QuoteCard, Listicle, Caption
 
             self.book_title = d.get("book_title", "")
 
@@ -1042,7 +1040,7 @@ def calendar_command(
 
     # Summary table
     summary = calendar_summary(entries)
-    console.print(f"\n[bold green]📊 Calendar Summary:[/bold green]")
+    console.print("\n[bold green]📊 Calendar Summary:[/bold green]")
     console.print(f"  Total posts: {summary['total']}")
     console.print(f"  Date range: {summary.get('date_range', '—')}")
 

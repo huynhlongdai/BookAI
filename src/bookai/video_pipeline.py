@@ -27,8 +27,6 @@ Usage::
 
 from __future__ import annotations
 
-import gc
-import glob
 import os
 import random
 import shutil
@@ -36,21 +34,16 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
 
-from bookai.tts_providers import tts_synthesize, TTSConfig
+from bookai.bgm import get_bgm_file
+from bookai.stock_video import (
+    StockVideoConfig,
+    search_and_download,
+)
 from bookai.subtitle import (
     generate_srt_from_tts,
-    parse_srt,
-    SubtitleConfig,
 )
-from bookai.bgm import get_bgm_file, list_bgm
-from bookai.stock_video import (
-    search_and_download,
-    StockVideoConfig,
-    MaterialInfo,
-)
-
+from bookai.tts_providers import TTSConfig, tts_synthesize
 
 # ---------------------------------------------------------------------------
 # Pipeline Config
@@ -259,7 +252,7 @@ def generate_search_terms(
         List of English search terms for stock APIs.
     """
     try:
-        from bookai.keyword_generator import generate_keywords, KeywordConfig
+        from bookai.keyword_generator import KeywordConfig, generate_keywords
 
         kw_config = KeywordConfig(
             num_terms=num_terms,
@@ -936,7 +929,10 @@ def create_book_video(
         section_clips = {"hook": None, "title": None, "outro": None}
         try:
             from bookai.video_sections import (
-                generate_hook, generate_title_card, generate_outro, SectionConfig,
+                SectionConfig,
+                generate_hook,
+                generate_outro,
+                generate_title_card,
             )
             sec_config = SectionConfig(
                 width=w, height=h, fps=config.fps,
@@ -979,7 +975,7 @@ def create_book_video(
             result.steps_completed.append("sections")
         except ImportError:
             pass  # video_sections not available — skip
-        except Exception as e:
+        except Exception:
             pass  # Non-fatal — continue without sections
 
         # Assemble final clip order: [hook] + [title] + content_clips + [outro]
@@ -1067,7 +1063,6 @@ def _generate_solid_bg(
     config: PipelineConfig,
 ) -> bool:
     """Generate a solid color background video."""
-    bg_color = config.subtitle_bg_color or "0x1a1a2e"
     try:
         cmd = [
             "ffmpeg", "-y",

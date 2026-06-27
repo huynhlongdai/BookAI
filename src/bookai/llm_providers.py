@@ -32,7 +32,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -479,7 +479,7 @@ def _dispatch(
 
 def generate(
     prompt: str,
-    config: Optional[LLMConfig] = None,
+    config: LLMConfig | None = None,
     system_prompt: str = "",
 ) -> LLMResult:
     """Generate text using the configured LLM provider.
@@ -530,7 +530,7 @@ def generate(
 
 def generate_json(
     prompt: str,
-    config: Optional[LLMConfig] = None,
+    config: LLMConfig | None = None,
     system_prompt: str = "",
 ) -> tuple[bool, Any, str]:
     """Generate and parse JSON from LLM.

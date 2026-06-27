@@ -15,7 +15,6 @@ from __future__ import annotations
 import os
 import re
 import unicodedata
-from pathlib import Path
 
 
 def resolve_safe_path(

@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import json
 import tempfile
-from pathlib import Path
 from dataclasses import dataclass
-from unittest.mock import MagicMock, patch
-
-import pytest
+from pathlib import Path
+from unittest.mock import patch
 
 from bookai.affiliate import AffiliateManager, BookLinks, _append_sub_id, make_sub_id
 from bookai.calendar import (
@@ -20,7 +18,6 @@ from bookai.calendar import (
 )
 from bookai.tts import _clean_text_for_tts, estimate_duration, list_voices
 from bookai.video_render import VideoConfig, _escape_ffmpeg_text, _wrap_text, check_ffmpeg
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -299,7 +296,7 @@ class TestTTS:
 
     def test_synthesize_script_builds_text(self):
         """Test that synthesize_script assembles hook+body+cta correctly."""
-        from bookai.tts import synthesize_script, TTSResult
+        from bookai.tts import TTSResult, synthesize_script
 
         class FakeScript:
             hook = "Hook text"
@@ -323,7 +320,7 @@ class TestTTS:
 
     def test_synthesize_script_can_exclude_sections(self):
         """Test include flags for hook/body/cta."""
-        from bookai.tts import synthesize_script, TTSResult
+        from bookai.tts import TTSResult, synthesize_script
 
         class FakeScript:
             hook = "HOOK"
@@ -577,8 +574,8 @@ class TestCalendar:
 
 
 class TestBlog:
-    def _make_book_result(self) -> "BookResult":
-        from bookai.models import BookResult, BookMetadata, AnalyzedChunk, Chunk, ChunkLabel
+    def _make_book_result(self):
+        from bookai.models import AnalyzedChunk, BookMetadata, BookResult, Chunk, ChunkLabel
 
         analyzed = [
             AnalyzedChunk(
@@ -609,7 +606,7 @@ class TestBlog:
         )
 
     def test_generate_blog_template(self):
-        from bookai.blog import generate_blog_post, BlogPost
+        from bookai.blog import BlogPost, generate_blog_post
 
         result = self._make_book_result()
         post = generate_blog_post(result, use_ai=False)
@@ -639,8 +636,9 @@ class TestBlog:
         assert post.book_title in html
 
     def test_blog_save_html(self):
-        from bookai.blog import generate_blog_post
         import tempfile
+
+        from bookai.blog import generate_blog_post
 
         result = self._make_book_result()
         post = generate_blog_post(result, use_ai=False)
@@ -653,8 +651,9 @@ class TestBlog:
             assert "<!DOCTYPE html>" in content
 
     def test_blog_save_markdown(self):
-        from bookai.blog import generate_blog_post
         import tempfile
+
+        from bookai.blog import generate_blog_post
 
         result = self._make_book_result()
         post = generate_blog_post(result, use_ai=False)

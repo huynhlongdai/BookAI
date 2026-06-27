@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ def _load_language(lang: str) -> dict[str, str]:
         return {}
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         return data.get("Translation", data)
     except Exception as e:
@@ -52,7 +51,7 @@ def get_language() -> str:
     return _current_language
 
 
-def t(key: str, lang: Optional[str] = None) -> str:
+def t(key: str, lang: str | None = None) -> str:
     """Translate a key to the current language.
 
     Falls back to the key itself if no translation found.
@@ -69,7 +68,7 @@ def available_languages() -> list[dict[str, str]]:
     langs = []
     for path in sorted(_i18n_dir.glob("*.json")):
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             langs.append({
                 "code": path.stem,
