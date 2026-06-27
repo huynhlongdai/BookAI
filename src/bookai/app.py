@@ -275,6 +275,87 @@ with st.sidebar:
             "Emotion", ["natural", "storytelling"],
             help="natural: bình thường | storytelling: kể chuyện diễn cảm",
         )
+    elif tts_provider == "elevenlabs":
+        el_key_input = st.text_input(
+            "ElevenLabs API Key(s)", type="password",
+            value=os.environ.get("ELEVENLABS_API_KEY", ""),
+            help="Nhiều key cách nhau bằng dấu phẩy để xoay vòng",
+        )
+        el_model = st.selectbox(
+            "Model",
+            ["eleven_multilingual_v2", "eleven_turbo_v2_5",
+             "eleven_monolingual_v1", "eleven_multilingual_v1"],
+            help="multilingual_v2: chất lượng cao | turbo_v2_5: nhanh hơn",
+        )
+        el_language = st.selectbox(
+            "Ngôn ngữ",
+            ["(auto)", "vi — Vietnamese", "en — English", "ja — Japanese",
+             "ko — Korean", "zh — Chinese", "fr — French", "de — German",
+             "es — Spanish", "pt — Portuguese", "it — Italian",
+             "th — Thai", "id — Indonesian", "ru — Russian", "ar — Arabic"],
+            help="Chọn ngôn ngữ cho model multilingual",
+        )
+        el_lang_code = "" if el_language == "(auto)" else el_language.split(" — ")[0]
+
+        # Voice selection — user can enter voice_id or choose from presets
+        el_voice_mode = st.radio(
+            "Chọn giọng", ["Premade voices", "Voice ID (clone/custom)"],
+            horizontal=True,
+        )
+        if el_voice_mode == "Premade voices":
+            el_premade = [
+                "Rachel (Nữ, calm — narration)",
+                "Drew (Nam, well-rounded)",
+                "Clyde (Nam, war veteran — storytelling)",
+                "Paul (Nam, ground news — narration)",
+                "Domi (Nữ, strong — narration)",
+                "Dave (Nữ, conversational — video)",
+                "Fin (Nam, sailor — video)",
+                "Sarah (Nữ, soft — news)",
+                "Antoni (Nam, well-rounded)",
+                "Thomas (Nam, calm — meditation)",
+                "Charlie (Nữ, casual — conversational)",
+                "Emily (Nữ, calm — meditation)",
+                "Elli (Nữ, emotional — narration)",
+                "Callum (Nam, intense — video)",
+            ]
+            tts_voice = st.selectbox(t("Voice"), el_premade)
+            tts_voice_id = tts_voice.split(" (")[0].lower()
+        else:
+            tts_voice_id = st.text_input(
+                "Voice ID",
+                help="Dán voice_id từ ElevenLabs (premade hoặc cloned voice)",
+            )
+
+        # Voice settings
+        st.caption("🎛️ Voice Settings")
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            el_stability = st.slider("Stability", 0.0, 1.0, 0.5, 0.05,
+                                     help="Thấp = diễn cảm hơn | Cao = ổn định hơn")
+            el_style = st.slider("Style", 0.0, 1.0, 0.0, 0.05,
+                                 help="Tăng để nhấn mạnh phong cách giọng gốc")
+        with col_s2:
+            el_similarity = st.slider("Similarity", 0.0, 1.0, 0.75, 0.05,
+                                      help="Cao = gần giọng gốc hơn (clone)")
+            el_boost = st.checkbox("Speaker Boost", value=True,
+                                   help="Tăng rõ giọng, giảm nhiễu")
+
+        # Voice clone section
+        with st.expander("🎙️ Clone giọng nói"):
+            st.caption("Upload 1-25 file audio (mp3/wav, mỗi file <10MB) để clone giọng")
+            clone_name = st.text_input("Tên giọng clone")
+            clone_files = st.file_uploader(
+                "File audio mẫu",
+                type=["mp3", "wav", "m4a"],
+                accept_multiple_files=True,
+            )
+            clone_lang = st.selectbox(
+                "Ngôn ngữ giọng clone",
+                ["vi", "en", "ja", "ko", "zh", "fr", "de", "es"],
+            )
+            if st.button("🎙️ Clone Voice", disabled=not clone_name or not clone_files):
+                st.info("Đang clone giọng... (cần API key có quyền clone)")
     elif tts_provider == "azure":
         azure_key = st.text_input("Azure Speech Key(s)", type="password",
                                   value=os.environ.get("AZURE_SPEECH_KEY", ""),

@@ -259,6 +259,11 @@ class TTSConfig:
     elevenlabs_key: str = ""
     elevenlabs_keys: list[str] = field(default_factory=list)
     elevenlabs_model: str = "eleven_multilingual_v2"
+    elevenlabs_stability: float = 0.5       # 0.0-1.0: lower=more expressive
+    elevenlabs_similarity: float = 0.75     # 0.0-1.0: higher=closer to original
+    elevenlabs_style: float = 0.0           # 0.0-1.0: style exaggeration
+    elevenlabs_speaker_boost: bool = True   # clarity boost
+    elevenlabs_language: str = ""           # ISO code: "vi", "en", "ja", etc.
 
     # VieNeu specific
     vieneu_key: str = ""
@@ -623,12 +628,34 @@ def _synth_siliconflow(text: str, output_path: Path, cfg: TTSConfig) -> TTSResul
 
 
 # ---------------------------------------------------------------------------
-# Provider: ElevenLabs
+# Provider: ElevenLabs (full features)
 # ---------------------------------------------------------------------------
+
+# ElevenLabs supported languages (29+)
+ELEVENLABS_LANGUAGES: dict[str, str] = {
+    "vi": "Vietnamese", "en": "English", "ja": "Japanese", "ko": "Korean",
+    "zh": "Chinese", "fr": "French", "de": "German", "es": "Spanish",
+    "pt": "Portuguese", "it": "Italian", "ru": "Russian", "ar": "Arabic",
+    "hi": "Hindi", "th": "Thai", "id": "Indonesian", "ms": "Malay",
+    "nl": "Dutch", "pl": "Polish", "sv": "Swedish", "da": "Danish",
+    "no": "Norwegian", "fi": "Finnish", "tr": "Turkish", "cs": "Czech",
+    "ro": "Romanian", "hu": "Hungarian", "el": "Greek", "he": "Hebrew",
+    "uk": "Ukrainian",
+}
+
+# ElevenLabs models
+ELEVENLABS_MODELS: dict[str, str] = {
+    "eleven_multilingual_v2": "Multilingual v2 — chất lượng cao, 29 ngôn ngữ",
+    "eleven_turbo_v2_5": "Turbo v2.5 — nhanh hơn, 32 ngôn ngữ",
+    "eleven_monolingual_v1": "Monolingual v1 — tiếng Anh",
+    "eleven_multilingual_v1": "Multilingual v1 — 8 ngôn ngữ",
+}
+
+_ELEVENLABS_BASE = "https://api.elevenlabs.io/v1"
 
 
 def _synth_elevenlabs(text: str, output_path: Path, cfg: TTSConfig) -> TTSResult:
-    """Synthesize using ElevenLabs."""
+    """Synthesize using ElevenLabs with full voice settings."""
     ring = cfg.get_key_ring("elevenlabs")
     if not ring.available:
         return TTSResult(
@@ -646,17 +673,25 @@ def _synth_elevenlabs(text: str, output_path: Path, cfg: TTSConfig) -> TTSResult
             ok=False, error="requests not installed",
         )
 
-    voice_id = cfg.voice  # ElevenLabs uses voice_id
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+    voice_id = cfg.voice
+    if voice_id.startswith("elevenlabs:"):
+        voice_id = voice_id[len("elevenlabs:"):]
 
-    payload = {
+    url = f"{_ELEVENLABS_BASE}/text-to-speech/{voice_id}"
+
+    payload: dict = {
         "text": text,
         "model_id": cfg.elevenlabs_model,
         "voice_settings": {
-            "stability": 0.5,
-            "similarity_boost": 0.75,
+            "stability": cfg.elevenlabs_stability,
+            "similarity_boost": cfg.elevenlabs_similarity,
+            "style": cfg.elevenlabs_style,
+            "use_speaker_boost": cfg.elevenlabs_speaker_boost,
         },
     }
+    # Add language code if specified (for multilingual models)
+    if cfg.elevenlabs_language:
+        payload["language_code"] = cfg.elevenlabs_language
 
     try:
         resp = requests.post(
@@ -673,9 +708,15 @@ def _synth_elevenlabs(text: str, output_path: Path, cfg: TTSConfig) -> TTSResult
         output_path.write_bytes(resp.content)
     except Exception as e:
         ring.report_failure(api_key)
+        error_detail = str(e)
+        if hasattr(e, "response") and e.response is not None:
+            try:
+                error_detail = e.response.json().get("detail", {}).get("message", str(e))
+            except Exception:
+                pass
         return TTSResult(
             output_path=output_path, provider="elevenlabs",
-            ok=False, error=f"ElevenLabs synthesis error: {e}",
+            ok=False, error=f"ElevenLabs synthesis error: {error_detail}",
         )
 
     duration = _get_audio_duration(output_path)
@@ -683,6 +724,184 @@ def _synth_elevenlabs(text: str, output_path: Path, cfg: TTSConfig) -> TTSResult
         output_path=output_path, voice=voice_id, provider="elevenlabs",
         duration_seconds=duration, text_length=len(text), ok=True,
     )
+
+
+def elevenlabs_list_voices(api_key: str = "") -> list[dict]:
+    """Fetch all available voices from ElevenLabs API.
+
+    Returns list of dicts with: voice_id, name, category, labels, preview_url, etc.
+    Categories: premade, cloned, generated, professional.
+    """
+    try:
+        import requests
+    except ImportError:
+        return []
+
+    if not api_key:
+        api_key = os.getenv("ELEVENLABS_API_KEY", "")
+    if not api_key:
+        return []
+
+    try:
+        resp = requests.get(
+            f"{_ELEVENLABS_BASE}/voices",
+            headers={"xi-api-key": api_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        voices = []
+        for v in data.get("voices", []):
+            labels = v.get("labels", {})
+            voices.append({
+                "voice_id": v["voice_id"],
+                "name": v["name"],
+                "category": v.get("category", "premade"),
+                "gender": labels.get("gender", ""),
+                "accent": labels.get("accent", ""),
+                "age": labels.get("age", ""),
+                "description": labels.get("description", ""),
+                "use_case": labels.get("use_case", ""),
+                "language": labels.get("language", ""),
+                "preview_url": v.get("preview_url", ""),
+                "is_cloned": v.get("category") == "cloned",
+            })
+        return voices
+    except Exception:
+        return []
+
+
+def elevenlabs_clone_voice(
+    name: str,
+    audio_files: list[str | Path],
+    api_key: str = "",
+    description: str = "",
+    labels: dict | None = None,
+) -> dict:
+    """Clone a voice using ElevenLabs Instant Voice Cloning.
+
+    Args:
+        name: Name for the cloned voice.
+        audio_files: List of audio file paths (mp3/wav, 1-25 files, each <10MB).
+        api_key: ElevenLabs API key.
+        description: Optional description.
+        labels: Optional labels dict, e.g. {"language": "vi", "gender": "female"}.
+
+    Returns:
+        Dict with voice_id and name on success, or error info.
+    """
+    try:
+        import requests
+    except ImportError:
+        return {"ok": False, "error": "requests not installed"}
+
+    if not api_key:
+        api_key = os.getenv("ELEVENLABS_API_KEY", "")
+    if not api_key:
+        return {"ok": False, "error": "No API key"}
+
+    url = f"{_ELEVENLABS_BASE}/voices/add"
+
+    files_data = []
+    for af in audio_files:
+        af = Path(af)
+        if not af.exists():
+            return {"ok": False, "error": f"File not found: {af}"}
+        files_data.append(("files", (af.name, open(str(af), "rb"), "audio/mpeg")))
+
+    form_data: dict = {"name": name}
+    if description:
+        form_data["description"] = description
+    if labels:
+        import json as _json
+        form_data["labels"] = _json.dumps(labels)
+
+    try:
+        resp = requests.post(
+            url,
+            data=form_data,
+            files=files_data,
+            headers={"xi-api-key": api_key},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        return {
+            "ok": True,
+            "voice_id": result.get("voice_id", ""),
+            "name": name,
+        }
+    except Exception as e:
+        error_msg = str(e)
+        if hasattr(e, "response") and e.response is not None:
+            try:
+                error_msg = e.response.text[:500]
+            except Exception:
+                pass
+        return {"ok": False, "error": f"Clone error: {error_msg}"}
+    finally:
+        for _, file_tuple in files_data:
+            try:
+                file_tuple[1].close()
+            except Exception:
+                pass
+
+
+def elevenlabs_delete_voice(voice_id: str, api_key: str = "") -> dict:
+    """Delete a cloned voice from ElevenLabs."""
+    try:
+        import requests
+    except ImportError:
+        return {"ok": False, "error": "requests not installed"}
+
+    if not api_key:
+        api_key = os.getenv("ELEVENLABS_API_KEY", "")
+    if not api_key:
+        return {"ok": False, "error": "No API key"}
+
+    try:
+        resp = requests.delete(
+            f"{_ELEVENLABS_BASE}/voices/{voice_id}",
+            headers={"xi-api-key": api_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        return {"ok": True, "voice_id": voice_id}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def elevenlabs_get_usage(api_key: str = "") -> dict:
+    """Get ElevenLabs subscription usage info (quota, characters used)."""
+    try:
+        import requests
+    except ImportError:
+        return {"ok": False, "error": "requests not installed"}
+
+    if not api_key:
+        api_key = os.getenv("ELEVENLABS_API_KEY", "")
+    if not api_key:
+        return {"ok": False, "error": "No API key"}
+
+    try:
+        resp = requests.get(
+            f"{_ELEVENLABS_BASE}/user/subscription",
+            headers={"xi-api-key": api_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return {
+            "ok": True,
+            "tier": data.get("tier", ""),
+            "character_count": data.get("character_count", 0),
+            "character_limit": data.get("character_limit", 0),
+            "voice_limit": data.get("voice_limit", 0),
+            "can_clone": data.get("can_extend_voice_limit", False),
+            "next_reset": data.get("next_character_count_reset_unix"),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 # ---------------------------------------------------------------------------
