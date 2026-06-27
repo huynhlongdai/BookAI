@@ -83,11 +83,11 @@ class PipelineConfig:
     subtitle_enabled: bool = True
     subtitle_position: str = "bottom"  # top, center, bottom, custom
     subtitle_custom_y: float = 80.0
-    subtitle_font_size: int = 48
+    subtitle_font_size: int = 24        # Smaller default — scales well on 1080p
     subtitle_font_name: str = ""
     subtitle_color: str = "#FFFFFF"
     subtitle_stroke_color: str = "#000000"
-    subtitle_stroke_width: float = 2.0
+    subtitle_stroke_width: float = 1.5
     subtitle_bg_color: str = ""  # "#00000090" for semi-transparent black
     subtitle_bg_opacity: float = 0.6
 
@@ -506,16 +506,25 @@ def _burn_subtitles_ffmpeg(
             alpha = bg_hex[6:8] if len(bg_hex) == 8 else "60"
             bg_style = f",BackColour=&H{alpha}{b}{g}{r}&,BorderStyle=4"
 
-    # Bottom margin
-    margin_v = 30 if config.subtitle_position == "bottom" else 20
+    # Margins — keep text away from screen edges
+    margin_v = 40 if config.subtitle_position == "bottom" else 25
+    margin_lr = 50  # Left/right margin to prevent full-width text
+
+    # Font name for ASS style (use Vietnamese font if available)
+    font_name = config.subtitle_font_name or "BeVietnamPro SemiBold"
+    font_clause = f"FontName={font_name}," if font_name else ""
 
     style = (
+        f"{font_clause}"
         f"FontSize={font_size},"
         f"PrimaryColour={ass_color},"
         f"OutlineColour={ass_outline},"
         f"Outline={outline_width},"
         f"Alignment={alignment},"
-        f"MarginV={margin_v}"
+        f"MarginV={margin_v},"
+        f"MarginL={margin_lr},"
+        f"MarginR={margin_lr},"
+        f"WrapStyle=0"  # Smart wrapping at word boundaries
         f"{bg_style}"
     )
 

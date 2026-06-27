@@ -180,8 +180,12 @@ def generate_srt_from_tts(
     word_timestamps: list[dict] = []
 
     async def _synthesize():
-        communicate = edge_tts.Communicate(clean, voice, rate=rate)
-        sub_maker = edge_tts.SubMaker()
+        # IMPORTANT: boundary="WordBoundary" is required for word-level
+        # timestamps. Edge-TTS 7.x defaults to "SentenceBoundary" which
+        # only gives sentence-level timing — unusable for sync.
+        communicate = edge_tts.Communicate(
+            clean, voice, rate=rate, boundary="WordBoundary"
+        )
 
         with open(str(audio_path), "wb") as f:
             async for chunk in communicate.stream():
@@ -203,13 +207,8 @@ def generate_srt_from_tts(
                             "end": end_sec,
                         })
 
-                    sub_maker.feed(chunk)
-
-        # Also create subtitle from sub_maker as fallback
-        return sub_maker
-
     try:
-        sub_maker = asyncio.run(_synthesize())
+        asyncio.run(_synthesize())
     except Exception:
         return None
 

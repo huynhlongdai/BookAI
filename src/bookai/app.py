@@ -992,7 +992,7 @@ with tab_video:
                 }.get(x, x),
                 index=2,
             )
-            sub_font_size = st.slider(t("Font Size"), 16, 60, 42)
+            sub_font_size = st.slider(t("Font Size"), 12, 48, 24)
             sub_col_a, sub_col_b = st.columns(2)
             with sub_col_a:
                 sub_font_color = st.color_picker(t("Font Color"), value="#FFFFFF")
@@ -1046,7 +1046,7 @@ with tab_video:
                 tts_voice=tts_voice_choice,
                 subtitle_enabled=enable_subtitle,
                 subtitle_position=sub_position if enable_subtitle else "bottom",
-                subtitle_font_size=sub_font_size if enable_subtitle else 42,
+                subtitle_font_size=sub_font_size if enable_subtitle else 24,
                 subtitle_color=sub_font_color if enable_subtitle else "#FFFFFF",
                 subtitle_stroke_color=sub_stroke_color if enable_subtitle else "#000000",
                 subtitle_bg_color="#00000090" if (enable_subtitle and sub_bg_enabled) else "",
