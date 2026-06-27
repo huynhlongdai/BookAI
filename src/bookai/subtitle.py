@@ -83,6 +83,11 @@ def _format_srt_time(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".", ",")
 
 
+def _is_sentence_end(word: str) -> bool:
+    """Check if a word ends a sentence (Vietnamese/English punctuation)."""
+    return bool(re.search(r'[.!?…。！？]\s*$', word))
+
+
 def _chunk_words_to_subtitle_lines(
     word_timestamps: list[dict],
     max_chars: int = 25,
@@ -90,7 +95,12 @@ def _chunk_words_to_subtitle_lines(
 ) -> list[dict]:
     """Group word-level timestamps into subtitle lines.
 
-    Each subtitle line respects max_chars and max_duration.
+    Each subtitle line respects:
+    - max_chars: maximum characters per line
+    - max_duration: maximum duration per line in seconds
+    - sentence boundaries: always break at sentence-ending punctuation
+      so subtitles never start with the tail of a previous sentence
+      or end with the head of a new sentence.
 
     Args:
         word_timestamps: List of {"word": str, "start": float, "end": float}.
@@ -104,38 +114,61 @@ def _chunk_words_to_subtitle_lines(
         return []
 
     subtitles = []
-    current_words = []
+    current_words: list[dict] = []
     current_text = ""
     current_start = word_timestamps[0]["start"]
 
+    _need_new_start = False  # flag: next word should start a new group
+
+    def _flush():
+        """Emit current accumulated words as a subtitle entry."""
+        nonlocal current_words, current_text, current_start, _need_new_start
+        if current_words:
+            subtitles.append({
+                "text": current_text.strip(),
+                "start": current_start,
+                "end": current_words[-1]["end"],
+            })
+        current_words = []
+        current_text = ""
+        _need_new_start = True  # next word sets current_start
+
     for wt in word_timestamps:
         word = wt["word"]
+
+        # After a flush (sentence end or overflow), reset start to this word
+        if _need_new_start:
+            current_start = wt["start"]
+            _need_new_start = False
+
         new_text = f"{current_text} {word}".strip() if current_text else word
         duration = wt["end"] - current_start
 
-        if len(new_text) > max_chars or duration > max_duration:
-            if current_words:
-                subtitles.append({
-                    "text": current_text,
-                    "start": current_start,
-                    "end": current_words[-1]["end"],
-                })
+        # Check if adding this word exceeds limits
+        exceeds_chars = len(new_text) > max_chars
+        exceeds_duration = duration > max_duration
+
+        if exceeds_chars or exceeds_duration:
+            # Flush what we have first, then start new group with this word
+            _flush()
             current_words = [wt]
             current_text = word
             current_start = wt["start"]
+            _need_new_start = False
         else:
             current_words.append(wt)
             current_text = new_text
 
-    # Last group
-    if current_words:
-        subtitles.append({
-            "text": current_text,
-            "start": current_start,
-            "end": current_words[-1]["end"],
-        })
+        # If this word ends a sentence, force a break here
+        # so the next subtitle starts cleanly at the new sentence
+        if _is_sentence_end(word) and current_words:
+            _flush()
 
-    return subtitles
+    # Flush remaining words
+    _flush()
+
+    # Remove any empty entries
+    return [s for s in subtitles if s["text"].strip()]
 
 
 def generate_srt_from_tts(
