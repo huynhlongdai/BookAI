@@ -1046,6 +1046,65 @@ with tab_video:
         except Exception:
             pass
 
+    # Google Drive integration
+    st.divider()
+    st.subheader("☁️ Google Drive — Tải tư liệu từ Drive")
+    st.caption("Nhập link thư mục Drive chia sẻ công khai để tải video/ảnh tư liệu")
+
+    drive_col1, drive_col2 = st.columns([3, 1])
+    with drive_col1:
+        drive_folder_url = st.text_input(
+            "🔗 Link thư mục Drive",
+            placeholder="https://drive.google.com/drive/folders/1ABC...",
+            key="drive_folder_url",
+        )
+    with drive_col2:
+        drive_api_key = st.text_input(
+            "🔑 Google API Key (optional)",
+            type="password",
+            key="drive_api_key",
+            help="Cần cho thư mục private. Public folder không cần.",
+        )
+
+    if drive_folder_url:
+        drive_col_a, drive_col_b = st.columns(2)
+        with drive_col_a:
+            if st.button("📋 Xem danh sách files", key="drive_list"):
+                try:
+                    from bookai.drive_material import DriveMaterialManager, DriveConfig
+                    dcfg = DriveConfig(
+                        folder_url=drive_folder_url,
+                        api_key=drive_api_key,
+                    )
+                    dmgr = DriveMaterialManager(dcfg)
+                    dfiles = dmgr.list_files()
+                    st.success(f"☁️ Tìm thấy {len(dfiles)} files trên Drive")
+                    for df in dfiles[:10]:
+                        icon = "🎥" if df.is_video else "🖼️" if df.is_image else "📄"
+                        st.caption(f"{icon} {df.name} ({df.category}) — {df.size_bytes/1024:.0f} KB")
+                except Exception as e:
+                    st.error(f"❌ Lỗi: {e}")
+
+        with drive_col_b:
+            drive_output = st.text_input(
+                "📂 Thư mục tải về",
+                value="materials/drive",
+                key="drive_output_dir",
+            )
+            if st.button("⬇️ Tải về tất cả", key="drive_download"):
+                try:
+                    from bookai.drive_material import DriveMaterialManager, DriveConfig
+                    dcfg = DriveConfig(
+                        folder_url=drive_folder_url,
+                        api_key=drive_api_key,
+                        download_dir=drive_output,
+                    )
+                    dmgr = DriveMaterialManager(dcfg)
+                    local_dir = dmgr.sync_to_local()
+                    st.success(f"✅ Đã tải {len(dmgr._files)} files → {local_dir}")
+                except Exception as e:
+                    st.error(f"❌ Lỗi: {e}")
+
     # ===== HOOK / TITLE / OUTRO SECTIONS =====
     st.divider()
     st.subheader("🎬 Video Sections — Hook / Title / Outro")
@@ -1113,6 +1172,51 @@ with tab_video:
             )
         else:
             outro_text_input = ""
+
+    # ===== DYNAMIC TEXT EFFECTS (CapCut Phase 2) =====
+    st.divider()
+    st.subheader("✨ Dynamic Text Effects — CapCut Phase 2")
+    st.caption("Hiệu ứng text động nâng cao: glow, overlay, counter")
+
+    fx_col1, fx_col2 = st.columns(2)
+    with fx_col1:
+        glow_preset_choice = st.selectbox(
+            "🔆 Glow Preset (cho subtitle)",
+            ["", "neon_pulse", "neon_flicker", "soft_glow", "fire_glow", "rainbow_cycle", "gradient_sweep", "shadow_pop", "frost_shine"],
+            format_func=lambda x: {
+                "": "❌ Không dùng glow",
+                "neon_pulse": "💚 Neon Pulse — Xanh lá nhấp nháy",
+                "neon_flicker": "💜 Neon Flicker — Tím ngẫu nhiên",
+                "soft_glow": "⬜ Soft Glow — Trắng dịu",
+                "fire_glow": "🔥 Fire Glow — Lửa cam-đỏ",
+                "rainbow_cycle": "🌈 Rainbow — Xoay cầu vồng",
+                "gradient_sweep": "🔵 Gradient Sweep — Quét xanh",
+                "shadow_pop": "⬛ Shadow Pop — Bóng nổi",
+                "frost_shine": "❄️ Frost Shine — Lấp lánh lạnh",
+            }.get(x, x),
+        )
+    with fx_col2:
+        overlay_choice = st.selectbox(
+            "📋 Text Overlay",
+            ["", "lower_third", "full_screen_quote", "bullet_list", "chapter_marker", "highlight_box", "stats_counter"],
+            format_func=lambda x: {
+                "": "❌ Không dùng overlay",
+                "lower_third": "📺 Lower Third — Thanh tên/tiêu đề",
+                "full_screen_quote": "💬 Full Screen Quote — Trích dẫn lớn",
+                "bullet_list": "📝 Bullet List — Danh sách điểm",
+                "chapter_marker": "📖 Chapter Marker — Đánh dấu chương",
+                "highlight_box": "💡 Highlight Box — Hộp insight",
+                "stats_counter": "📊 Stats Counter — Đếm số",
+            }.get(x, x),
+        )
+        if overlay_choice:
+            overlay_text = st.text_input(
+                "📝 Nội dung overlay",
+                placeholder="Tên tác giả, insight chính, hoặc số liệu",
+                key="overlay_text",
+            )
+        else:
+            overlay_text = ""
 
     # Audio & Subtitle settings
     st.divider()

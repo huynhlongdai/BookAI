@@ -480,6 +480,241 @@ if FASTAPI_AVAILABLE:
         )
 
     # -----------------------------------------------------------------------
+    # Templates — list all available templates and presets
+    # -----------------------------------------------------------------------
+
+    @app.get("/api/v1/templates/subtitles", tags=["Templates"])
+    async def list_subtitle_templates():
+        """List all available subtitle templates."""
+        try:
+            from bookai.subtitle_templates import list_templates
+            return {"templates": list_templates()}
+        except ImportError:
+            return {"templates": []}
+
+    @app.get("/api/v1/templates/hooks", tags=["Templates"])
+    async def list_hook_templates():
+        """List available hook section styles."""
+        return {
+            "hooks": [
+                {"id": "bold_question", "name": "Bold Question", "description": "Câu hỏi gây tò mò"},
+                {"id": "shocking_fact", "name": "Shocking Fact", "description": "Sự thật bất ngờ"},
+                {"id": "book_rating", "name": "Book Rating", "description": "Đánh giá sách (⭐)"},
+                {"id": "quote_reveal", "name": "Quote Reveal", "description": "Trích dẫn nổi bật"},
+                {"id": "mystery", "name": "Mystery Tease", "description": "Bí ẩn / Teaser"},
+            ]
+        }
+
+    @app.get("/api/v1/templates/title-cards", tags=["Templates"])
+    async def list_title_card_templates():
+        """List available title card styles."""
+        return {
+            "title_cards": [
+                {"id": "book_cover", "name": "Book Cover", "description": "Hiển thị bìa sách"},
+                {"id": "minimalist", "name": "Minimalist", "description": "Tối giản, thanh lịch"},
+                {"id": "gradient_card", "name": "Gradient Card", "description": "Card gradient màu"},
+                {"id": "split_screen", "name": "Split Screen", "description": "Chia đôi màn hình"},
+            ]
+        }
+
+    @app.get("/api/v1/templates/outros", tags=["Templates"])
+    async def list_outro_templates():
+        """List available outro styles."""
+        return {
+            "outros": [
+                {"id": "subscribe_cta", "name": "Subscribe CTA", "description": "Kêu gọi đăng ký"},
+                {"id": "rating_summary", "name": "Rating Summary", "description": "Tổng kết đánh giá"},
+                {"id": "next_book", "name": "Next Book", "description": "Giới thiệu sách tiếp"},
+            ]
+        }
+
+    @app.get("/api/v1/templates/effects", tags=["Templates"])
+    async def list_effect_presets():
+        """List dynamic text effect presets."""
+        try:
+            from bookai.dynamic_effects import list_glow_presets, list_overlay_types
+            return {
+                "glow_presets": list_glow_presets(),
+                "overlay_types": list_overlay_types(),
+            }
+        except ImportError:
+            return {"glow_presets": [], "overlay_types": []}
+
+    @app.get("/api/v1/templates/animations", tags=["Templates"])
+    async def list_text_animations():
+        """List available text animation effects."""
+        try:
+            from bookai.text_animations import TextAnimator
+            return {
+                "entrance": ["fade_in", "slide_up", "slide_left", "zoom_in", "pop_bounce", "typewriter", "blur_reveal"],
+                "emphasis": ["word_highlight", "pulse", "color_change", "underline_sweep"],
+                "exit": ["fade_out", "slide_out", "shrink"],
+            }
+        except ImportError:
+            return {"entrance": [], "emphasis": [], "exit": []}
+
+    # -----------------------------------------------------------------------
+    # Google Drive — material integration
+    # -----------------------------------------------------------------------
+
+    @app.post("/api/v1/drive/list", tags=["Drive"])
+    async def drive_list_files(
+        folder_url: str = "",
+        folder_id: str = "",
+        api_key: str = "",
+    ):
+        """List media files in a Google Drive shared folder."""
+        try:
+            from bookai.drive_material import DriveMaterialManager, DriveConfig
+            config = DriveConfig(
+                folder_url=folder_url,
+                folder_id=folder_id,
+                api_key=api_key,
+            )
+            mgr = DriveMaterialManager(config)
+            files = mgr.list_files()
+            return {
+                "folder_id": mgr.folder_id,
+                "count": len(files),
+                "files": [
+                    {
+                        "id": f.id,
+                        "name": f.name,
+                        "mime_type": f.mime_type,
+                        "size_bytes": f.size_bytes,
+                        "category": f.category,
+                        "is_video": f.is_video,
+                        "is_image": f.is_image,
+                    }
+                    for f in files
+                ],
+            }
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/api/v1/drive/sync", tags=["Drive"])
+    async def drive_sync_folder(
+        folder_url: str = "",
+        folder_id: str = "",
+        api_key: str = "",
+        output_dir: str = "materials/drive",
+    ):
+        """Download all media from a Drive folder to local storage."""
+        try:
+            from bookai.drive_material import DriveMaterialManager, DriveConfig
+            config = DriveConfig(
+                folder_url=folder_url,
+                folder_id=folder_id,
+                api_key=api_key,
+                download_dir=output_dir,
+            )
+            mgr = DriveMaterialManager(config)
+            local_dir = mgr.sync_to_local()
+            return {
+                "status": "ok",
+                "local_dir": local_dir,
+                "files_count": len(mgr._files),
+            }
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    # -----------------------------------------------------------------------
+    # Keywords — LLM keyword generation
+    # -----------------------------------------------------------------------
+
+    @app.post("/api/v1/keywords/generate", tags=["Keywords"])
+    async def generate_keywords_endpoint(
+        script_text: str = "",
+        book_title: str = "",
+        mode: str = "llm",
+        max_keywords: int = 8,
+    ):
+        """Generate search keywords from script text."""
+        try:
+            from bookai.keyword_generator import (
+                generate_keywords, generate_keywords_regex, KeywordConfig,
+            )
+            from bookai.config import get_config
+
+            if mode == "llm":
+                cfg = get_config()
+                llm = cfg.get("llm", {})
+                kw_cfg = KeywordConfig(
+                    llm_api_key=llm.get("openai_api_key", ""),
+                    llm_base_url=llm.get("openai_base_url", "https://api.openai.com/v1"),
+                    llm_model=llm.get("openai_model_name", "gpt-4o-mini"),
+                    max_keywords=max_keywords,
+                )
+                keywords = generate_keywords(script_text, book_title, "book review", kw_cfg)
+            else:
+                keywords = generate_keywords_regex(script_text, book_title, max_keywords)
+
+            return {"keywords": keywords, "count": len(keywords), "mode": mode}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    # -----------------------------------------------------------------------
+    # WebSocket — real-time pipeline progress
+    # -----------------------------------------------------------------------
+
+    try:
+        from fastapi import WebSocket as _WS
+
+        @app.websocket("/api/v1/ws/progress/{task_id}")
+        async def websocket_progress(websocket: _WS, task_id: str):
+            """WebSocket endpoint for real-time video pipeline progress.
+
+            Client connects and receives JSON messages:
+                {"step": "tts", "progress": 0.15, "message": "Generating TTS..."}
+                {"step": "materials", "progress": 0.35, "message": "Downloading stock video..."}
+                ...
+                {"step": "complete", "progress": 1.0, "message": "Done!", "output_path": "..."}
+            """
+            await websocket.accept()
+
+            from bookai.task_manager import get_task_manager
+            mgr = get_task_manager()
+
+            import asyncio
+            last_progress = -1
+
+            try:
+                while True:
+                    task = mgr.get_task(task_id)
+                    if task is None:
+                        await websocket.send_json({
+                            "error": f"Task {task_id} not found",
+                        })
+                        break
+
+                    progress = task.get("progress", 0)
+                    if progress != last_progress:
+                        await websocket.send_json({
+                            "task_id": task_id,
+                            "status": task.get("status", "unknown"),
+                            "step": task.get("current_step", ""),
+                            "progress": progress,
+                            "message": task.get("message", ""),
+                            "output_path": task.get("output_path", ""),
+                        })
+                        last_progress = progress
+
+                    if task.get("status") in ("completed", "failed", "cancelled"):
+                        break
+
+                    await asyncio.sleep(0.5)
+            except Exception:
+                pass
+            finally:
+                try:
+                    await websocket.close()
+                except Exception:
+                    pass
+
+    except ImportError:
+        pass  # WebSocket not available
+
+    # -----------------------------------------------------------------------
     # Startup / shutdown
     # -----------------------------------------------------------------------
 

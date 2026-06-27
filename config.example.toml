@@ -66,6 +66,19 @@ scan_recursive = true
 # ├── intros/        # Intro clips
 # └── outros/        # Outro clips
 
+# Google Drive material source
+[material.drive]
+api_key = ""               # Google API key (for private folders)
+# folders = [
+#     {name = "Book Covers", url = "https://drive.google.com/drive/folders/..."},
+#     {name = "Backgrounds", url = "https://drive.google.com/drive/folders/..."},
+# ]
+
+# Dynamic text effects (CapCut Phase 2)
+[effects]
+glow_preset = ""           # neon_pulse, neon_flicker, soft_glow, fire_glow, rainbow_cycle, gradient_sweep, shadow_pop, frost_shine
+overlay_type = ""          # lower_third, full_screen_quote, bullet_list, chapter_marker, highlight_box, stats_counter
+
 [social]
 upload_post_enabled = false
 upload_post_api_key = ""
