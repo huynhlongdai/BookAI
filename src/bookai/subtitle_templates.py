@@ -258,6 +258,67 @@ TEMPLATES: dict[str, SubtitleTemplate] = {
         position_bottom_pct=10.0,
         max_chars_per_line=28,
     ),
+
+    # --- 3 New templates ---
+
+    "word_by_word_highlight": SubtitleTemplate(
+        name="word_by_word_highlight",
+        description="Highlight từng từ đang đọc — kiểu TikTok trending",
+        font_size=48,
+        font_color="#AAAAAA",  # Non-active words are gray
+        font_bold=True,
+        outline_enabled=True,
+        outline_color="#000000",
+        outline_width=4,
+        highlight_enabled=True,
+        highlight_color="#FFFFFF",  # Active word is bright white
+        shadow_enabled=True,
+        shadow_color="#00000090",
+        shadow_offset_x=0,
+        shadow_offset_y=3,
+        position_bottom_pct=18.0,
+        animation="karaoke",
+        max_chars_per_line=18,
+    ),
+
+    "the_classic": SubtitleTemplate(
+        name="the_classic",
+        description="Kiểu phụ đề phim — vàng nhạt trên nền đen mờ",
+        font_size=36,
+        font_color="#FFFDD0",  # Cream/pale yellow
+        font_bold=False,
+        bg_enabled=True,
+        bg_color="#000000",
+        bg_opacity=0.6,
+        bg_corner_radius=0,  # No rounding = cinematic bar
+        bg_padding_x=60,
+        bg_padding_y=12,
+        outline_enabled=False,
+        shadow_enabled=False,
+        position_bottom_pct=5.0,
+        max_chars_per_line=40,
+    ),
+
+    "chat_bubble": SubtitleTemplate(
+        name="chat_bubble",
+        description="Bong bóng chat — kiểu tin nhắn iMessage",
+        font_size=34,
+        font_color="#FFFFFF",
+        font_bold=False,
+        bg_enabled=True,
+        bg_color="#007AFF",  # iMessage blue
+        bg_opacity=0.92,
+        bg_corner_radius=30,
+        bg_padding_x=40,
+        bg_padding_y=20,
+        outline_enabled=False,
+        shadow_enabled=True,
+        shadow_color="#00000040",
+        shadow_offset_x=0,
+        shadow_offset_y=5,
+        position_bottom_pct=12.0,
+        max_chars_per_line=24,
+    ),
 }
 
 

@@ -950,6 +950,170 @@ with tab_video:
         )
         st.info("💡 Ảnh sẽ tự chuyển thành clip video với hiệu ứng Ken Burns (zoom). Video sẽ được resize và cắt tự động")
 
+    # ===== KEYWORD PREVIEW =====
+    st.divider()
+    st.subheader("🔑 Keyword tìm kiếm — LLM AI")
+    st.caption("Hệ thống tự phân tích script → trích xuất English keywords cho stock video/ảnh")
+
+    kw_col1, kw_col2 = st.columns([2, 1])
+    with kw_col1:
+        keyword_mode = st.radio(
+            "Chế độ keyword",
+            ["llm", "regex", "manual"],
+            format_func=lambda x: {
+                "llm": "🤖 LLM AI — Phân tích sâu bằng GPT",
+                "regex": "📝 Regex — Trích xuất tự động (không cần API)",
+                "manual": "✏️ Thủ công — Nhập từ khóa trực tiếp",
+            }.get(x, x),
+            horizontal=True,
+        )
+    with kw_col2:
+        if keyword_mode == "llm":
+            kw_llm_key = st.text_input(
+                "🔑 LLM API Key",
+                type="password",
+                value=get_section("llm").get("openai_api_key", ""),
+                help="Dùng OpenAI, TokenRouter, hoặc bất kỳ API tương thích",
+                key="kw_llm_key",
+            )
+
+    if keyword_mode == "manual":
+        manual_keywords = st.text_input(
+            "🔍 Từ khóa (phẩy cách)",
+            placeholder="reading book, self improvement, atomic habits, success",
+            key="manual_keywords",
+        )
+
+    # Preview keywords
+    if video_script and keyword_mode != "manual":
+        if st.button("👁️ Xem trước Keywords", key="preview_kw"):
+            try:
+                from bookai.keyword_generator import generate_keywords, generate_keywords_regex, KeywordConfig
+                if keyword_mode == "llm" and kw_llm_key:
+                    kw_cfg = KeywordConfig(
+                        llm_api_key=kw_llm_key,
+                        llm_base_url=get_section("llm").get("openai_base_url", "https://api.openai.com/v1"),
+                        llm_model=get_section("llm").get("openai_model_name", "gpt-4o-mini"),
+                    )
+                    preview_kw = generate_keywords(video_script, "", "book review", kw_cfg)
+                else:
+                    preview_kw = generate_keywords_regex(video_script, "", 8)
+                st.success(f"🔑 Keywords ({len(preview_kw)}): " + ", ".join(f"`{k}`" for k in preview_kw))
+            except Exception as e:
+                st.error(f"Lỗi: {e}")
+
+    # ===== MATERIAL MANAGEMENT — Local + Mixed =====
+    st.divider()
+    st.subheader("📂 Quản lý tư liệu — Local & Mixed")
+    st.caption("Kết hợp thư mục local + stock API cho video phong phú hơn")
+
+    mat_mgr_col1, mat_mgr_col2 = st.columns(2)
+    with mat_mgr_col1:
+        local_material_mode = st.selectbox(
+            "Chế độ tư liệu local",
+            ["none", "supplement", "priority", "only"],
+            format_func=lambda x: {
+                "none": "❌ Không dùng local",
+                "supplement": "➕ Bổ sung — Stock chính, local phụ",
+                "priority": "⭐ Ưu tiên — Local trước, stock bổ sung",
+                "only": "📂 Chỉ local — Không dùng stock API",
+            }.get(x, x),
+            key="local_material_mode",
+        )
+    with mat_mgr_col2:
+        if local_material_mode != "none":
+            local_dir_path = st.text_input(
+                "📂 Thư mục tư liệu",
+                placeholder="/path/to/materials/",
+                help="Cấu trúc: hooks/, backgrounds/, book_covers/, overlays/, intros/, outros/",
+                key="local_dir_path",
+            )
+        else:
+            local_dir_path = ""
+
+    if local_dir_path and os.path.isdir(local_dir_path):
+        try:
+            from bookai.material_manager import scan_local_directory
+            scanned = scan_local_directory(local_dir_path, recursive=True)
+            if scanned:
+                cats = {}
+                for m in scanned:
+                    cats.setdefault(m.category, []).append(m)
+                cat_str = " | ".join(f"{k}: {len(v)} files" for k, v in cats.items())
+                st.success(f"📂 Tìm thấy {len(scanned)} files — {cat_str}")
+            else:
+                st.warning("⚠️ Không tìm thấy file nào trong thư mục")
+        except Exception:
+            pass
+
+    # ===== HOOK / TITLE / OUTRO SECTIONS =====
+    st.divider()
+    st.subheader("🎬 Video Sections — Hook / Title / Outro")
+    st.caption("Thêm đoạn mở đầu (Hook), thẻ tiêu đề, và đoạn kết chuyên nghiệp")
+
+    sec_col1, sec_col2, sec_col3 = st.columns(3)
+    with sec_col1:
+        hook_style_choice = st.selectbox(
+            "🪝 Hook Style",
+            ["", "bold_question", "shocking_fact", "book_rating", "quote_reveal", "mystery"],
+            format_func=lambda x: {
+                "": "❌ Không dùng Hook",
+                "bold_question": "❓ Câu hỏi gây tò mò",
+                "shocking_fact": "⚡ Sự thật bất ngờ",
+                "book_rating": "⭐ Đánh giá sách",
+                "quote_reveal": "💬 Trích dẫn nổi bật",
+                "mystery": "🔮 Bí ẩn / Teaser",
+            }.get(x, x),
+        )
+        if hook_style_choice:
+            hook_text_input = st.text_input(
+                "📝 Nội dung Hook",
+                placeholder="Cuốn sách này đã thay đổi cuộc đời tôi!",
+                key="hook_text_input",
+            )
+        else:
+            hook_text_input = ""
+
+    with sec_col2:
+        title_card_choice = st.selectbox(
+            "🏷️ Title Card Style",
+            ["", "book_cover", "minimalist", "gradient_card", "split_screen"],
+            format_func=lambda x: {
+                "": "❌ Không dùng Title Card",
+                "book_cover": "📕 Bìa sách",
+                "minimalist": "✨ Tối giản",
+                "gradient_card": "🌈 Gradient",
+                "split_screen": "📐 Chia đôi",
+            }.get(x, x),
+        )
+        cover_img_path = ""
+        if title_card_choice == "book_cover":
+            cover_img_path = st.text_input(
+                "🖼️ Ảnh bìa sách",
+                placeholder="/path/to/cover.jpg",
+                key="cover_img",
+            )
+
+    with sec_col3:
+        outro_style_choice = st.selectbox(
+            "🎬 Outro Style",
+            ["", "subscribe_cta", "rating_summary", "next_book"],
+            format_func=lambda x: {
+                "": "❌ Không dùng Outro",
+                "subscribe_cta": "🔔 Subscribe CTA",
+                "rating_summary": "⭐ Tổng kết đánh giá",
+                "next_book": "📚 Giới thiệu sách tiếp",
+            }.get(x, x),
+        )
+        if outro_style_choice:
+            outro_text_input = st.text_input(
+                "📝 Nội dung Outro",
+                value="Cảm ơn đã xem! Đăng ký kênh nhé!",
+                key="outro_text_input",
+            )
+        else:
+            outro_text_input = ""
+
     # Audio & Subtitle settings
     st.divider()
     audio_sub_col1, audio_sub_col2 = st.columns(2)
@@ -1083,6 +1247,20 @@ with tab_video:
                 subtitle_template=selected_template if enable_subtitle else "",
                 bgm_mode=bgm_mode,
                 bgm_volume=bgm_volume,
+                # New: keyword settings
+                keyword_mode=keyword_mode if keyword_mode != "manual" else "regex",
+                llm_api_key=kw_llm_key if keyword_mode == "llm" else "",
+                llm_base_url=get_section("llm").get("openai_base_url", "https://api.openai.com/v1"),
+                llm_model=get_section("llm").get("openai_model_name", "gpt-4o-mini"),
+                # New: local material mode
+                local_mode=local_material_mode if local_material_mode != "none" else "supplement",
+                # New: video sections (hook/title/outro)
+                hook_style=hook_style_choice,
+                hook_text=hook_text_input,
+                title_card_style=title_card_choice,
+                cover_image_path=cover_img_path,
+                outro_style=outro_style_choice,
+                outro_text=outro_text_input,
             )
 
             # Output path
@@ -1705,7 +1883,7 @@ with tab_settings:
     cfg = get_config()
 
     # Display current config sections
-    config_tabs = st.tabs(["[app]", "[llm]", "[tts]", "[video]", "[social]", "[affiliate]"])
+    config_tabs = st.tabs(["[app]", "[llm]", "[tts]", "[video]", "[material]", "[social]", "[affiliate]"])
 
     with config_tabs[0]:
         st.subheader("🏠 App Settings")
@@ -1788,13 +1966,58 @@ with tab_settings:
             st.success("✅ API Keys saved!")
 
     with config_tabs[4]:
+        st.subheader("📂 Material Settings")
+        st.caption("Cấu hình keyword generation và local material directories")
+
+        mat_cfg = get_section("material")
+
+        new_kw_mode = st.selectbox(
+            "Keyword Mode",
+            ["llm", "regex"],
+            index=0 if mat_cfg.get("keyword_mode", "llm") == "llm" else 1,
+            format_func=lambda x: {
+                "llm": "🤖 LLM AI — Keyword từ GPT",
+                "regex": "📝 Regex — Không cần API",
+            }.get(x, x),
+            key="settings_kw_mode",
+        )
+        new_match_order = st.checkbox(
+            "Match script order (keywords theo thứ tự kịch bản)",
+            value=mat_cfg.get("match_script_order", True),
+            key="settings_match_order",
+        )
+        new_local_dir = st.text_input(
+            "📂 Default local material directory",
+            value=mat_cfg.get("local_dir", ""),
+            key="settings_local_dir",
+        )
+        new_local_mode = st.selectbox(
+            "Local mode",
+            ["supplement", "priority", "only"],
+            index=["supplement", "priority", "only"].index(mat_cfg.get("local_mode", "supplement")),
+            format_func=lambda x: {
+                "supplement": "➕ Supplement (stock + local)",
+                "priority": "⭐ Priority (local first)",
+                "only": "📂 Only (no stock API)",
+            }.get(x, x),
+            key="settings_local_mode",
+        )
+
+        if st.button("💾 Save Material Settings", key="save_material"):
+            set_value("material", "keyword_mode", new_kw_mode)
+            set_value("material", "match_script_order", new_match_order)
+            set_value("material", "local_dir", new_local_dir)
+            set_value("material", "local_mode", new_local_mode)
+            st.success("✅ Material settings saved!")
+
+    with config_tabs[5]:
         st.subheader("📤 Social Settings")
         social_cfg = get_section("social")
         for k, v in social_cfg.items():
             if "key" not in k.lower():
                 st.text(f"{k} = {v}")
 
-    with config_tabs[5]:
+    with config_tabs[6]:
         st.subheader("💰 Affiliate Settings")
         aff_cfg = get_section("affiliate")
         for k, v in aff_cfg.items():
