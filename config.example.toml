@@ -34,10 +34,37 @@ aspect = "9:16"  # 9:16, 16:9, 1:1
 transition = "fade_in"
 bgm_mode = "random"  # none, random, specific
 subtitle_enabled = true
+subtitle_template = ""  # classic, capcut_white_box, capcut_dark_box, neon_glow, bold_impact, etc.
 video_source = "pexels"
 pexels_api_keys = []       # Get free key: https://www.pexels.com/api/
 pixabay_api_keys = []      # Get free key: https://pixabay.com/api/docs/
 coverr_api_key = ""
+
+# Hook/Title/Outro sections
+hook_style = ""           # bold_question, shocking_fact, book_rating, quote_reveal, mystery
+hook_text = ""
+title_card_style = ""     # book_cover, minimalist, gradient_card, split_screen
+outro_style = ""          # subscribe_cta, rating_summary, next_book
+outro_text = "Cảm ơn đã xem!"
+
+[material]
+# Keyword generation from script
+keyword_mode = "llm"       # "llm" (AI-powered) or "regex" (no API needed)
+match_script_order = true  # Keywords follow script chronology
+
+# Local material directory
+local_dir = ""             # Path to local video/image materials folder
+local_mode = "supplement"  # "only", "supplement" (stock + local), "priority" (local first)
+scan_recursive = true
+
+# Folder structure suggestion:
+# materials/
+# ├── hooks/         # Hook video clips
+# ├── backgrounds/   # Background footage
+# ├── book_covers/   # Book cover images
+# ├── overlays/      # Text overlays
+# ├── intros/        # Intro clips
+# └── outros/        # Outro clips
 
 [social]
 upload_post_enabled = false

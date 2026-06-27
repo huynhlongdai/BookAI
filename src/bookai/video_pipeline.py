@@ -111,6 +111,25 @@ class PipelineConfig:
     # Search terms (auto-generated if empty)
     search_terms: list[str] = field(default_factory=list)
 
+    # LLM-based keyword generation (MPT-style)
+    keyword_mode: str = "llm"  # "llm" or "regex"
+    match_script_order: bool = True
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_model: str = "gpt-4o-mini"
+
+    # Local material settings
+    local_mode: str = "supplement"  # "only", "supplement", "priority"
+    scan_recursive: bool = True
+
+    # Video sections (hooks, title cards, outros)
+    hook_style: str = ""  # Empty = no hook. Options: bold_question, shocking_fact, book_rating, quote_reveal, mystery
+    hook_text: str = ""
+    title_card_style: str = ""  # Empty = no title card. Options: book_cover, minimalist, gradient_card, split_screen
+    outro_style: str = ""  # Empty = no outro. Options: subscribe_cta, rating_summary, next_book
+    outro_text: str = "Cảm ơn đã xem!"
+    cover_image_path: str = ""  # Book cover image for title card
+
     @property
     def width(self) -> int:
         return _aspect_to_resolution(self.aspect)[0]
@@ -220,25 +239,57 @@ def _get_media_info(path: str) -> dict:
 def generate_search_terms(
     script_text: str,
     book_title: str = "",
-    num_terms: int = 5,
+    num_terms: int = 8,
+    config: PipelineConfig | None = None,
+    book_genre: str = "",
 ) -> list[str]:
-    """Extract English search terms from Vietnamese script for stock footage.
+    """Extract English search terms from book script for stock footage.
 
-    Uses simple keyword extraction. For better results, use an LLM.
+    Uses LLM-based extraction with automatic language detection and
+    translation (MPT-style). Falls back to regex if LLM unavailable.
+
+    Args:
+        script_text: Script text in any language.
+        book_title: Book title for context.
+        num_terms: Number of search terms to generate.
+        config: PipelineConfig with LLM settings.
+        book_genre: Book genre for better visual matching.
+
+    Returns:
+        List of English search terms for stock APIs.
     """
-    # Common book/reading related terms
-    base_terms = ["reading book", "education", "knowledge"]
+    try:
+        from bookai.keyword_generator import generate_keywords, KeywordConfig
 
-    # Extract potential topics from the script
-    import re
-    # Look for quoted terms, English words, technical terms
-    english_words = re.findall(r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*', script_text)
-    tech_terms = re.findall(r'\b(?:AI|Machine Learning|Deep Learning|NLP|Data|Science|Technology)\b',
-                            script_text, re.IGNORECASE)
+        kw_config = KeywordConfig(
+            num_terms=num_terms,
+            match_script_order=config.match_script_order if config else True,
+            fallback_to_regex=True,
+        )
 
-    terms = list(set(tech_terms + english_words[:5] + base_terms))
-    random.shuffle(terms)
-    return terms[:num_terms]
+        if config and config.llm_api_key:
+            kw_config.llm_api_key = config.llm_api_key
+            kw_config.llm_base_url = config.llm_base_url
+            kw_config.llm_model = config.llm_model
+
+        return generate_keywords(
+            script_text=script_text,
+            book_title=book_title,
+            book_genre=book_genre,
+            config=kw_config,
+        )
+    except ImportError:
+        # Fallback to basic regex extraction
+        import re
+        base_terms = ["reading book", "education", "knowledge"]
+        english_words = re.findall(r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*', script_text)
+        tech_terms = re.findall(
+            r'\b(?:AI|Machine Learning|Deep Learning|NLP|Data|Science|Technology)\b',
+            script_text, re.IGNORECASE,
+        )
+        terms = list(set(tech_terms + english_words[:5] + base_terms))
+        random.shuffle(terms)
+        return terms[:num_terms]
 
 
 # ---------------------------------------------------------------------------
@@ -734,10 +785,13 @@ def create_book_video(
         elif config.material_source == "local" and config.local_material_dir:
             material_paths = collect_local_materials(config.local_material_dir, config)
         elif config.material_source in ("pexels", "pixabay", "coverr"):
-            # Generate search terms
+            # Generate search terms (LLM-based with translation)
             terms = search_terms or config.search_terms
             if not terms:
-                terms = generate_search_terms(script_text, book_title)
+                terms = generate_search_terms(
+                    script_text, book_title,
+                    config=config,
+                )
             result.search_terms_used = terms
 
             material_paths = collect_stock_materials(
@@ -746,6 +800,16 @@ def create_book_video(
                 config=config,
                 output_dir=work_dir,
             )
+
+        # Mixed mode: supplement with local materials
+        if (config.local_material_dir and config.local_mode == "supplement"
+                and config.material_source in ("pexels", "pixabay", "coverr")):
+            local_paths = collect_local_materials(config.local_material_dir, config)
+            material_paths = material_paths + local_paths
+        elif (config.local_material_dir and config.local_mode == "priority"
+              and config.material_source in ("pexels", "pixabay", "coverr")):
+            local_paths = collect_local_materials(config.local_material_dir, config)
+            material_paths = local_paths + material_paths
 
         # Filter valid materials
         valid_materials = []
@@ -868,9 +932,69 @@ def create_book_video(
 
         result.steps_completed.append("clips")
 
+        # ===== STEP 4b: Generate video sections (hook, title card, outro) =====
+        section_clips = {"hook": None, "title": None, "outro": None}
+        try:
+            from bookai.video_sections import (
+                generate_hook, generate_title_card, generate_outro, SectionConfig,
+            )
+            sec_config = SectionConfig(
+                width=w, height=h, fps=config.fps,
+            )
+
+            if config.hook_style and config.hook_text:
+                hook_path = os.path.join(clips_dir, "hook.mp4")
+                hook_clip = generate_hook(
+                    text=config.hook_text,
+                    style=config.hook_style,
+                    output_path=hook_path,
+                    config=sec_config,
+                )
+                if hook_clip and os.path.exists(hook_clip):
+                    section_clips["hook"] = hook_clip
+
+            if config.title_card_style:
+                title_path = os.path.join(clips_dir, "title_card.mp4")
+                title_clip = generate_title_card(
+                    book_title=book_title,
+                    style=config.title_card_style,
+                    output_path=title_path,
+                    config=sec_config,
+                    cover_image_path=config.cover_image_path,
+                )
+                if title_clip and os.path.exists(title_clip):
+                    section_clips["title"] = title_clip
+
+            if config.outro_style:
+                outro_path = os.path.join(clips_dir, "outro.mp4")
+                outro_clip = generate_outro(
+                    text=config.outro_text,
+                    style=config.outro_style,
+                    output_path=outro_path,
+                    config=sec_config,
+                )
+                if outro_clip and os.path.exists(outro_clip):
+                    section_clips["outro"] = outro_clip
+
+            result.steps_completed.append("sections")
+        except ImportError:
+            pass  # video_sections not available — skip
+        except Exception as e:
+            pass  # Non-fatal — continue without sections
+
+        # Assemble final clip order: [hook] + [title] + content_clips + [outro]
+        all_clips = []
+        if section_clips["hook"]:
+            all_clips.append(section_clips["hook"])
+        if section_clips["title"]:
+            all_clips.append(section_clips["title"])
+        all_clips.extend(processed_clips)
+        if section_clips["outro"]:
+            all_clips.append(section_clips["outro"])
+
         # ===== STEP 5: Concatenate clips =====
         combined_video = os.path.join(work_dir, "combined.mp4")
-        _concat_clips_ffmpeg(processed_clips, combined_video)
+        _concat_clips_ffmpeg(all_clips, combined_video)
 
         if not os.path.exists(combined_video):
             result.error = "Failed to concatenate video clips"
