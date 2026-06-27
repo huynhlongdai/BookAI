@@ -982,23 +982,53 @@ with tab_video:
         st.subheader("📝 Phụ đề (Subtitles)")
         enable_subtitle = st.checkbox(t("Enable Subtitles"), value=True)
         if enable_subtitle:
-            sub_position = st.selectbox(
-                t("Subtitle Position"),
-                [p.value for p in SubtitlePosition],
-                format_func=lambda x: {
-                    "top": "⬆️ " + t("Top"),
-                    "center": "⏺️ " + t("Center"),
-                    "bottom": "⬇️ " + t("Bottom"),
-                }.get(x, x),
-                index=2,
-            )
-            sub_font_size = st.slider(t("Font Size"), 12, 48, 24)
-            sub_col_a, sub_col_b = st.columns(2)
-            with sub_col_a:
-                sub_font_color = st.color_picker(t("Font Color"), value="#FFFFFF")
-            with sub_col_b:
-                sub_stroke_color = st.color_picker(t("Stroke Color"), value="#000000")
-            sub_bg_enabled = st.checkbox("Nền phụ đề bán trong suốt", value=False)
+            # Template selector (CapCut-style)
+            try:
+                from bookai.subtitle_templates import TEMPLATES, list_templates
+                template_options = ["(Tùy chỉnh)"] + [
+                    f"{t_info['name']} — {t_info['description']}"
+                    for t_info in list_templates()
+                ]
+                template_ids = [""] + list(TEMPLATES.keys())
+                selected_template_idx = st.selectbox(
+                    "🎨 Kiểu phụ đề (Template)",
+                    range(len(template_options)),
+                    format_func=lambda i: template_options[i],
+                    index=1,  # Default to capcut_white_box (first template after custom)
+                    help="Chọn mẫu phụ đề kiểu CapCut hoặc tùy chỉnh",
+                )
+                selected_template = template_ids[selected_template_idx]
+            except ImportError:
+                selected_template = ""
+
+            # Show custom settings only when no template selected
+            if not selected_template:
+                sub_position = st.selectbox(
+                    t("Subtitle Position"),
+                    [p.value for p in SubtitlePosition],
+                    format_func=lambda x: {
+                        "top": "⬆️ " + t("Top"),
+                        "center": "⏺️ " + t("Center"),
+                        "bottom": "⬇️ " + t("Bottom"),
+                    }.get(x, x),
+                    index=2,
+                )
+                sub_font_size = st.slider(t("Font Size"), 12, 48, 24)
+                sub_col_a, sub_col_b = st.columns(2)
+                with sub_col_a:
+                    sub_font_color = st.color_picker(t("Font Color"), value="#FFFFFF")
+                with sub_col_b:
+                    sub_stroke_color = st.color_picker(t("Stroke Color"), value="#000000")
+                sub_bg_enabled = st.checkbox("Nền phụ đề bán trong suốt", value=False)
+            else:
+                # Defaults when using template (template handles everything)
+                sub_position = "bottom"
+                sub_font_size = 24
+                sub_font_color = "#FFFFFF"
+                sub_stroke_color = "#000000"
+                sub_bg_enabled = False
+        else:
+            selected_template = ""
 
     # ===== RENDER BUTTON =====
     st.divider()
@@ -1050,6 +1080,7 @@ with tab_video:
                 subtitle_color=sub_font_color if enable_subtitle else "#FFFFFF",
                 subtitle_stroke_color=sub_stroke_color if enable_subtitle else "#000000",
                 subtitle_bg_color="#00000090" if (enable_subtitle and sub_bg_enabled) else "",
+                subtitle_template=selected_template if enable_subtitle else "",
                 bgm_mode=bgm_mode,
                 bgm_volume=bgm_volume,
             )

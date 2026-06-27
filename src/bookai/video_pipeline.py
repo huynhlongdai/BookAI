@@ -91,6 +91,11 @@ class PipelineConfig:
     subtitle_bg_color: str = ""  # "#00000090" for semi-transparent black
     subtitle_bg_opacity: float = 0.6
 
+    # Subtitle template (overrides individual subtitle settings when set)
+    # Options: classic, capcut_white_box, capcut_dark_box, capcut_gradient_box,
+    #          neon_glow, bold_impact, minimal_clean, karaoke_word, modern_pill
+    subtitle_template: str = ""  # Empty = use individual settings above
+
     # BGM
     bgm_mode: str = "random"  # random, none, or specific file
     bgm_file: str = ""
@@ -461,6 +466,29 @@ def _concat_clips_ffmpeg(
 # ---------------------------------------------------------------------------
 # Step 5: Burn subtitles onto video
 # ---------------------------------------------------------------------------
+
+
+def _burn_subtitles(
+    video_path: str,
+    subtitle_path: str,
+    output_path: str,
+    config: PipelineConfig,
+) -> bool:
+    """Burn subtitles — uses styled template if set, else plain FFmpeg."""
+    if config.subtitle_template:
+        try:
+            from bookai.subtitle_templates import burn_styled_subtitles
+            return burn_styled_subtitles(
+                video_path=video_path,
+                srt_path=subtitle_path,
+                output_path=output_path,
+                template=config.subtitle_template,
+                video_width=config.width,
+                video_height=config.height,
+            )
+        except Exception:
+            pass  # Fallback to plain FFmpeg
+    return _burn_subtitles_ffmpeg(video_path, subtitle_path, output_path, config)
 
 
 def _burn_subtitles_ffmpeg(
@@ -870,7 +898,7 @@ def create_book_video(
         # ===== STEP 6: Burn subtitles =====
         if srt_file and config.subtitle_enabled:
             subtitled_video = os.path.join(work_dir, "subtitled.mp4")
-            _burn_subtitles_ffmpeg(combined_video, srt_file, subtitled_video, config)
+            _burn_subtitles(combined_video, srt_file, subtitled_video, config)
             if os.path.exists(subtitled_video) and os.path.getsize(subtitled_video) > 0:
                 combined_video = subtitled_video
                 result.steps_completed.append("subtitle_burn")
