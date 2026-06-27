@@ -226,7 +226,7 @@ with st.sidebar:
     st.subheader("🔊 TTS")
     tts_provider = st.selectbox(
         t("TTS Provider"),
-        ["edge_tts", "azure", "siliconflow", "elevenlabs", "no_voice"],
+        ["edge_tts", "vieneu", "azure", "siliconflow", "elevenlabs", "no_voice"],
         index=0,
     )
 
@@ -239,9 +239,46 @@ with st.sidebar:
             ],
         )
         tts_voice_id = tts_voice.split(" ")[0]
+    elif tts_provider == "vieneu":
+        vieneu_key_input = st.text_input(
+            "VieNeu API Key(s)", type="password",
+            value=os.environ.get("VIENEU_API_KEY", ""),
+            help="Nhiều key cách nhau bằng dấu phẩy để xoay vòng",
+        )
+        vieneu_voices = [
+            "Ngọc Lan (Nữ, miền Nam — dịu dàng)",
+            "Minh Quân (Nam, miền Nam — kể chuyện)",
+            "Hoàng Long (Nam, miền Bắc — khỏe khoắn)",
+            "Gia Bảo (Nam, miền Bắc — mượt mà)",
+            "Thái Sơn (Nam, miền Nam — rõ ràng)",
+            "Thu Hà (Nữ, miền Nam — nhẹ nhàng)",
+            "Phương Anh (Nữ, miền Nam — dịu dàng)",
+            "Hải Yến (Nữ, miền Nam — tươi sáng)",
+            "Đức Trí (Nam, miền Nam — trầm ấm)",
+            "Mỹ Duyên (Nữ, miền Nam — tự nhiên)",
+            "Tuấn Kiệt (Nam, miền Bắc — rắn rỏi)",
+            "Kim Chi (Nữ, miền Nam — truyền cảm)",
+            "Quang Huy (Nam, miền Nam — sôi nổi)",
+            "Bảo Trâm (Nữ, miền Nam — ấm áp)",
+            "Bảo Nam (Nam, miền Bắc — trầm ấm)",
+            "Diễm My (Nữ, miền Bắc — trẻ trung)",
+            "Lan Phương (Nữ, miền Nam — mềm mại)",
+            "Trúc Ly (Nữ, miền Nam — tươi sáng)",
+            "Đăng Khoa (Nam, miền Nam — tự nhiên)",
+            "Xuân Vĩnh (Nam, miền Nam — thân thiện)",
+            "Tuyết Mai (Nữ, miền Nam — thanh thoát)",
+            "Nhật Minh (Nam, miền Nam — dẫn chuyện)",
+        ]
+        tts_voice = st.selectbox(t("Voice"), vieneu_voices)
+        tts_voice_id = "vieneu:" + tts_voice.split(" (")[0]
+        vieneu_emotion = st.selectbox(
+            "Emotion", ["natural", "storytelling"],
+            help="natural: bình thường | storytelling: kể chuyện diễn cảm",
+        )
     elif tts_provider == "azure":
-        azure_key = st.text_input("Azure Speech Key", type="password",
-                                  value=os.environ.get("AZURE_SPEECH_KEY", ""))
+        azure_key = st.text_input("Azure Speech Key(s)", type="password",
+                                  value=os.environ.get("AZURE_SPEECH_KEY", ""),
+                                  help="Nhiều key cách nhau bằng dấu phẩy")
         azure_region = st.text_input("Azure Region", value="southeastasia")
         tts_voice = st.selectbox(
             t("Voice"),
