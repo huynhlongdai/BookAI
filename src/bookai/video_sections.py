@@ -1216,3 +1216,333 @@ def _overlay_highlight(
         return _render_frames_to_video(tmpdir, output_path, config.fps)
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# Font helper for standalone section generators
+# ---------------------------------------------------------------------------
+
+
+def _get_font(size: int, bold: bool = False):
+    """Load a font by size, standalone helper for intro generators."""
+    font_paths_bold = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    ]
+    font_paths_regular = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+    ]
+    paths = (font_paths_bold if bold else font_paths_regular) + font_paths_bold + font_paths_regular
+    for fp in paths:
+        if os.path.exists(fp):
+            try:
+                return ImageFont.truetype(fp, size)
+            except Exception:
+                continue
+    return ImageFont.load_default()
+
+
+# ---------------------------------------------------------------------------
+# Intro Templates
+# ---------------------------------------------------------------------------
+
+
+def generate_intro(
+    text: str = "",
+    style: str = "logo_reveal",
+    output_path: str = "intro.mp4",
+    config: SectionConfig | None = None,
+    logo_text: str = "BookAI",
+    channel_name: str = "",
+    genre: str = "",
+) -> str:
+    """Generate an intro video section.
+
+    Styles:
+        - logo_reveal:       Logo/brand text zooms in with glow
+        - countdown:         3-2-1 countdown with circles
+        - channel_branding:  Channel name + tagline slide-in
+        - genre_mood:        Genre-themed mood intro (fiction, business, etc.)
+
+    Returns:
+        Path to generated MP4 clip.
+    """
+    if Image is None:
+        raise ImportError("Pillow is required for video sections")
+
+    if config is None:
+        config = SectionConfig(duration=4.0)
+
+    dispatch = {
+        "logo_reveal": _intro_logo_reveal,
+        "countdown": _intro_countdown,
+        "channel_branding": _intro_channel_branding,
+        "genre_mood": _intro_genre_mood,
+    }
+
+    generator = dispatch.get(style, _intro_logo_reveal)
+    return generator(
+        text=text, output_path=output_path, config=config,
+        logo_text=logo_text, channel_name=channel_name, genre=genre,
+    )
+
+
+def _intro_logo_reveal(
+    text: str, output_path: str, config: SectionConfig,
+    logo_text: str = "BookAI", **kwargs,
+) -> str:
+    """Logo/brand text zoom-in with glow effect."""
+    W, H = config.width, config.height
+    num_frames = int(config.duration * config.fps)
+    tmpdir = tempfile.mkdtemp(prefix="intro_logo_")
+
+    try:
+        for i in range(num_frames):
+            img = Image.new("RGB", (W, H), (10, 10, 20))
+            draw = ImageDraw.Draw(img)
+            t = i / max(num_frames - 1, 1)
+
+            # Phase 1 (0-0.4): zoom in
+            # Phase 2 (0.4-0.7): glow pulse
+            # Phase 3 (0.7-1.0): hold + subtitle fade in
+
+            if t < 0.4:
+                scale = 0.3 + 0.7 * (t / 0.4) ** 0.5
+                alpha = min(1.0, t / 0.2)
+            elif t < 0.7:
+                scale = 1.0
+                alpha = 1.0
+            else:
+                scale = 1.0
+                alpha = 1.0
+
+            # Logo text
+            font_size = int(W * 0.12 * scale)
+            font = _get_font(font_size, bold=True)
+            text_color = tuple(int(255 * alpha) for _ in range(3))
+
+            bbox = draw.textbbox((0, 0), logo_text, font=font)
+            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            tx = (W - tw) // 2
+            ty = int(H * 0.42) - th // 2
+
+            # Glow effect (circle behind text)
+            if t > 0.15:
+                glow_alpha = int(40 * alpha)
+                glow_r = int(tw * 0.8)
+                for r in range(glow_r, 0, -5):
+                    glow_c = (glow_alpha // 3, glow_alpha // 2, glow_alpha)
+                    cx, cy = W // 2, int(H * 0.42)
+                    draw.ellipse(
+                        [(cx - r, cy - r), (cx + r, cy + r)],
+                        fill=glow_c,
+                    )
+
+            draw.text((tx, ty), logo_text, font=font, fill=text_color)
+
+            # Subtitle text
+            if t > 0.6 and text:
+                sub_alpha = min(1.0, (t - 0.6) / 0.3)
+                sub_font = _get_font(int(W * 0.04))
+                sub_color = tuple(int(200 * sub_alpha) for _ in range(3))
+                sbbox = draw.textbbox((0, 0), text, font=sub_font)
+                stw = sbbox[2] - sbbox[0]
+                draw.text(
+                    ((W - stw) // 2, int(H * 0.52)),
+                    text, font=sub_font, fill=sub_color,
+                )
+
+            img.save(os.path.join(tmpdir, f"frame_{i:04d}.png"))
+
+        return _render_frames_to_video(tmpdir, output_path, config.fps)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _intro_countdown(
+    text: str, output_path: str, config: SectionConfig, **kwargs,
+) -> str:
+    """3-2-1 countdown with animated circles."""
+    W, H = config.width, config.height
+    # Force 3 seconds for countdown
+    duration = max(config.duration, 3.0)
+    num_frames = int(duration * config.fps)
+    tmpdir = tempfile.mkdtemp(prefix="intro_count_")
+
+    try:
+        for i in range(num_frames):
+            img = Image.new("RGB", (W, H), (15, 15, 25))
+            draw = ImageDraw.Draw(img)
+            t = i / max(num_frames - 1, 1)
+
+            # Which number? 3→2→1
+            third = 1.0 / 3.0
+            if t < third:
+                number = "3"
+                local_t = t / third
+                circle_color = (255, 100, 100)
+            elif t < 2 * third:
+                number = "2"
+                local_t = (t - third) / third
+                circle_color = (255, 200, 50)
+            else:
+                number = "1"
+                local_t = (t - 2 * third) / third
+                circle_color = (100, 255, 100)
+
+            # Animated circle (expand + fade)
+            circle_r = int(min(W, H) * 0.2 * (0.5 + 0.5 * (1 - abs(local_t - 0.5) * 2)))
+            alpha_mult = 1.0 - abs(local_t - 0.5) * 1.5
+            alpha_mult = max(0, min(1, alpha_mult))
+
+            cx, cy = W // 2, H // 2
+            fill = tuple(int(c * alpha_mult * 0.3) for c in circle_color)
+            draw.ellipse(
+                [(cx - circle_r, cy - circle_r), (cx + circle_r, cy + circle_r)],
+                fill=fill,
+                outline=tuple(int(c * alpha_mult) for c in circle_color),
+                width=4,
+            )
+
+            # Number
+            font_size = int(min(W, H) * 0.15 * (0.8 + 0.4 * alpha_mult))
+            font = _get_font(font_size, bold=True)
+            num_color = tuple(int(c * alpha_mult) for c in circle_color)
+            bbox = draw.textbbox((0, 0), number, font=font)
+            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            draw.text(((W - tw) // 2, (H - th) // 2), number, font=font, fill=num_color)
+
+            img.save(os.path.join(tmpdir, f"frame_{i:04d}.png"))
+
+        return _render_frames_to_video(tmpdir, output_path, config.fps)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _intro_channel_branding(
+    text: str, output_path: str, config: SectionConfig,
+    channel_name: str = "", **kwargs,
+) -> str:
+    """Channel name + tagline slide-in from left."""
+    W, H = config.width, config.height
+    num_frames = int(config.duration * config.fps)
+    tmpdir = tempfile.mkdtemp(prefix="intro_brand_")
+
+    display_name = channel_name or "BookAI Channel"
+    tagline = text or "Review sách hay mỗi tuần"
+
+    try:
+        for i in range(num_frames):
+            img = Image.new("RGB", (W, H), (18, 18, 30))
+            draw = ImageDraw.Draw(img)
+            t = i / max(num_frames - 1, 1)
+
+            # Slide-in from left (0-0.3), hold (0.3-0.8), fade out (0.8-1.0)
+            if t < 0.3:
+                slide = t / 0.3
+                offset_x = int(W * (1 - slide))
+                alpha = slide
+            elif t < 0.8:
+                offset_x = 0
+                alpha = 1.0
+            else:
+                offset_x = 0
+                alpha = 1.0 - (t - 0.8) / 0.2
+
+            # Channel name
+            name_font = _get_font(int(W * 0.08), bold=True)
+            name_color = tuple(int(255 * alpha) for _ in range(3))
+            nbbox = draw.textbbox((0, 0), display_name, font=name_font)
+            ntw = nbbox[2] - nbbox[0]
+            nx = (W - ntw) // 2 - offset_x
+            draw.text((nx, int(H * 0.40)), display_name, font=name_font, fill=name_color)
+
+            # Divider line
+            line_w = int(W * 0.4 * min(1, alpha * 1.5))
+            line_y = int(H * 0.47)
+            line_color = (int(100 * alpha), int(200 * alpha), int(255 * alpha))
+            draw.line(
+                [(W // 2 - line_w // 2, line_y), (W // 2 + line_w // 2, line_y)],
+                fill=line_color, width=3,
+            )
+
+            # Tagline
+            if t > 0.15:
+                tag_alpha = min(1.0, (t - 0.15) / 0.3) * alpha
+                tag_font = _get_font(int(W * 0.04))
+                tag_color = tuple(int(180 * tag_alpha) for _ in range(3))
+                tbbox = draw.textbbox((0, 0), tagline, font=tag_font)
+                ttw = tbbox[2] - tbbox[0]
+                draw.text(
+                    ((W - ttw) // 2, int(H * 0.50)),
+                    tagline, font=tag_font, fill=tag_color,
+                )
+
+            img.save(os.path.join(tmpdir, f"frame_{i:04d}.png"))
+
+        return _render_frames_to_video(tmpdir, output_path, config.fps)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _intro_genre_mood(
+    text: str, output_path: str, config: SectionConfig,
+    genre: str = "", **kwargs,
+) -> str:
+    """Genre-themed mood intro with color scheme."""
+    W, H = config.width, config.height
+    num_frames = int(config.duration * config.fps)
+    tmpdir = tempfile.mkdtemp(prefix="intro_genre_")
+
+    # Genre color schemes
+    genre_themes = {
+        "fiction": {"bg": (20, 15, 35), "accent": (180, 100, 255), "label": "📖 Fiction"},
+        "business": {"bg": (15, 25, 20), "accent": (80, 200, 120), "label": "💼 Business"},
+        "self_help": {"bg": (35, 25, 10), "accent": (255, 180, 50), "label": "🌟 Self-Help"},
+        "science": {"bg": (10, 20, 35), "accent": (100, 180, 255), "label": "🔬 Science"},
+        "history": {"bg": (30, 20, 15), "accent": (200, 150, 100), "label": "📜 History"},
+        "romance": {"bg": (35, 15, 25), "accent": (255, 100, 150), "label": "❤️ Romance"},
+    }
+    theme = genre_themes.get(genre, genre_themes.get("fiction"))
+    display_text = text or theme["label"]
+
+    try:
+        for i in range(num_frames):
+            bg = theme["bg"]
+            img = Image.new("RGB", (W, H), bg)
+            draw = ImageDraw.Draw(img)
+            t = i / max(num_frames - 1, 1)
+
+            # Fade in (0-0.3), pulse (0.3-0.7), fade out (0.7-1.0)
+            if t < 0.3:
+                alpha = t / 0.3
+            elif t < 0.7:
+                alpha = 1.0
+            else:
+                alpha = 1.0 - (t - 0.7) / 0.3
+
+            accent = theme["accent"]
+
+            # Ambient circles
+            import math as _math
+            for j in range(3):
+                phase = t * 2 + j * 2.1
+                cx = int(W * (0.3 + 0.4 * _math.sin(phase)))
+                cy = int(H * (0.3 + 0.4 * _math.cos(phase * 0.7)))
+                r = int(min(W, H) * 0.15)
+                c = tuple(int(v * alpha * 0.08) for v in accent)
+                draw.ellipse([(cx - r, cy - r), (cx + r, cy + r)], fill=c)
+
+            # Genre label
+            font = _get_font(int(W * 0.09), bold=True)
+            color = tuple(int(v * alpha) for v in accent)
+            bbox = draw.textbbox((0, 0), display_text, font=font)
+            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            draw.text(((W - tw) // 2, (H - th) // 2), display_text, font=font, fill=color)
+
+            img.save(os.path.join(tmpdir, f"frame_{i:04d}.png"))
+
+        return _render_frames_to_video(tmpdir, output_path, config.fps)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)

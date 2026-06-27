@@ -555,6 +555,56 @@ if FASTAPI_AVAILABLE:
         except ImportError:
             return {"entrance": [], "emphasis": [], "exit": []}
 
+    @app.get("/api/v1/templates/intros", tags=["Templates"])
+    async def list_intro_templates():
+        """List available intro section styles."""
+        return {
+            "styles": [
+                {"name": "logo_reveal", "desc": "Logo/brand zoom-in với glow"},
+                {"name": "countdown", "desc": "Đếm ngược 3-2-1 với vòng tròn"},
+                {"name": "channel_branding", "desc": "Tên kênh + tagline slide-in"},
+                {"name": "genre_mood", "desc": "Intro theo thể loại sách"},
+            ],
+            "genre_themes": ["fiction", "business", "self_help", "science", "history", "romance"],
+        }
+
+    @app.get("/api/v1/presets", tags=["Presets"])
+    async def list_video_presets():
+        """List all available video presets."""
+        try:
+            from bookai.video_presets import list_presets
+            return {"presets": list_presets()}
+        except ImportError:
+            return {"presets": []}
+
+    @app.get("/api/v1/presets/{name}", tags=["Presets"])
+    async def get_video_preset(name: str):
+        """Get details of a specific video preset."""
+        try:
+            from bookai.video_presets import apply_preset, get_preset
+            preset = get_preset(name)
+            if not preset:
+                return {"error": f"Preset '{name}' not found"}
+            config = apply_preset(preset)
+            return {"preset": config}
+        except ImportError:
+            return {"error": "video_presets module not available"}
+
+    @app.post("/api/v1/emotions/tag", tags=["TTS"])
+    async def auto_tag_emotions(
+        text: str = "",
+        provider: str = "vieneu",
+        sensitivity: float = 0.5,
+    ):
+        """Auto-insert emotion tags into script text."""
+        try:
+            from bookai.emotion_tags import EmotionConfig, auto_insert_emotions
+            config = EmotionConfig(provider=provider, sensitivity=sensitivity)
+            tagged = auto_insert_emotions(text, config)
+            return {"original": text, "tagged": tagged, "provider": provider}
+        except ImportError:
+            return {"error": "emotion_tags module not available"}
+
     # -----------------------------------------------------------------------
     # Google Drive — material integration
     # -----------------------------------------------------------------------

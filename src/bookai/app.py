@@ -934,6 +934,27 @@ with tab_video:
 
     from bookai.models import BgmMode, SubtitlePosition, TransitionMode, VideoAspect
 
+    # Video Preset selector
+    with st.expander("🎬 Video Presets — chọn template sẵn", expanded=False):
+        try:
+            from bookai.video_presets import PRESETS
+            preset_options = ["(Không dùng preset)"] + [
+                f"{p.display_name} — {p.description}" for p in PRESETS.values()
+            ]
+            selected_preset = st.selectbox("Chọn preset", preset_options)
+            if selected_preset != "(Không dùng preset)":
+                preset_name = selected_preset.split(" — ")[0].strip()
+                for pname, pobj in PRESETS.items():
+                    if pobj.display_name == preset_name:
+                        st.info(
+                            f"📐 {pobj.aspect_ratio} | ⏱️ {pobj.target_duration}s | "
+                            f"🎨 Subtitle: {pobj.subtitle_template} | 🎵 BGM: {pobj.bgm_mood}\n\n"
+                            f"Sections: {' → '.join(pobj.sections)}"
+                        )
+                        break
+        except ImportError:
+            st.caption("video_presets chưa cài đặt")
+
     v_col1, v_col2 = st.columns(2)
 
     with v_col1:
